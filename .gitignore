@@ -1,6 +1,9 @@
 # package data
 data
 encoded
+tasks
+done
+undone
 vvc/
 https://github.com/vipowueb/minflat-beamer
 # Byte-compiled / optimized / DLL files
