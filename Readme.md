@@ -12,7 +12,7 @@ Following binaries should be installed:
 
 - python3 is required for some scripts and ML.
 - ffmpeg is used for video convertion from mkv to yuv format.
-- mediainfo is used for video feature extraction
+- mediainfo is used for video metadata extraction
 
 ### Python libraries
 
