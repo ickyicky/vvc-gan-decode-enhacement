@@ -64,4 +64,4 @@ in order to create `TASKS` file containing list of jobs to run. You can either r
 python3 bin/pool_work.py TASKS DONE UNDONE --cpu-count=32
 ```
 
-Where TASKS is special file containing jobs to run (shell instruction, each in new line generated in previous step), DONE is file which will be created if the process is interrupted of finished, containing list of completed jobs, UNDONE will contain remaining (unfinished) jobs and cpu-count means number of concurrent jobs to run (if not given defaults to number of CPU cores in the system).
+Where `TASKS` is special file containing jobs to run (shell instruction, each in new line generated in previous step), `DONE` is file which will be created if the process is interrupted of finished, containing list of completed jobs, `UNDONE` will contain remaining (unfinished) jobs and `cpu-count` means number of concurrent jobs to run (if not given defaults to number of CPU cores in the system).
