@@ -14,21 +14,21 @@ DEFAULT_FOLDER = "data"
 BASE_URL = "https://storage.googleapis.com/ugc-dataset/original_videos"
 
 SELECTED_VIDEOS = [
-    # "Animation/360P/Animation_360P-188f.mkv",
-    # "Animation/720P/Animation_720P-620f.mkv",
-    # "CoverSong/480P/CoverSong_480P-2142.mkv",
-    # "CoverSong/360P/CoverSong_360P-59d1.mkv",
-    # "Gaming/480P/Gaming_480P-14fc.mkv",
-    # "Gaming/360P/Gaming_360P-3794.mkv",
-    # "HowTo/480P/HowTo_480P-60b3.mkv",
-    # "HowTo/360P/HowTo_360P-3aa6.mkv",
-    # "Lecture/720P/Lecture_720P-3b7f.mkv",
-    # "Lecture/360P/Lecture_360P-2d1f.mkv",
-    # "LiveMusic/720P/LiveMusic_720P-0cd5.mkv",
-    # "LiveMusic/480P/LiveMusic_480P-0638.mkv",
-    # "LyricVideo/360P/LyricVideo_360P-0ac7.mkv",
-    # "LyricVideo/360P/LyricVideo_360P-17ce.mkv",
-    # "Lyrics/480P/LyricVideo_480P-5c17.mkv",
+    "Animation/360P/Animation_360P-188f.mkv",
+    "Animation/720P/Animation_720P-620f.mkv",
+    "CoverSong/480P/CoverSong_480P-2142.mkv",
+    "CoverSong/360P/CoverSong_360P-59d1.mkv",
+    "Gaming/480P/Gaming_480P-14fc.mkv",
+    "Gaming/360P/Gaming_360P-3794.mkv",
+    "HowTo/480P/HowTo_480P-60b3.mkv",
+    "HowTo/360P/HowTo_360P-3aa6.mkv",
+    "Lecture/720P/Lecture_720P-3b7f.mkv",
+    "Lecture/360P/Lecture_360P-2d1f.mkv",
+    "LiveMusic/720P/LiveMusic_720P-0cd5.mkv",
+    "LiveMusic/480P/LiveMusic_480P-0638.mkv",
+    "LyricVideo/360P/LyricVideo_360P-0ac7.mkv",
+    "LyricVideo/360P/LyricVideo_360P-17ce.mkv",
+    "Lyrics/480P/LyricVideo_480P-5c17.mkv",
     "MusicVideo/480P/MusicVideo_480P-3aa2.mkv",
     "MusicVideo/720P/MusicVideo_720P-7bcf.mkv",
     "NewsClip/360P/NewsClip_360P-1093.mkv",
@@ -55,6 +55,11 @@ def download_videos(target: str):
         category, resolution, _ = video.split("/")
 
         target_filename = os.path.join(target, f"{resolution}_{category}.mkv")
+
+        if os.path.exists(target_filename):
+            should_proceed = input(f"file {target_filename} already exists, overwrite it? (y/n)").strip().upper()
+            if should_proceed != "Y":
+                continue
 
         with requests.get(url, stream=True) as data:
             data.raise_for_status()
