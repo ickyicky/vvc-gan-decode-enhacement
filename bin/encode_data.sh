@@ -23,22 +23,9 @@ print_usage() {
 [[ -z "$FILE" ]] && { print_usage; exit 1; }
 
 ODIR="encoded"
-ENCODER_APP="./vvc/bin/EncoderAppStatic"
-
-AI_CF="-c vvc/cfg/encoder_intra_vtm.cfg"
-RA_CF="-c vvc/cfg/encoder_randomaccess_vtm.cfg"
-
-YESALF="--ALF=1 --CCALF=1"
-NOALF="--ALF=0 --CCALF=0"
-YESDB="--DeblockingFilterDisable=0"
-NODB="--DeblockingFilterDisable=1"
-YESSAO="--SAO=1"
-NOSAO="--SAO=0"
-
-ARGS=""
+ENCODER_APP="./vvenc/bin/release-static/vvencFFapp"
 
 [[ -d "data" ]] || { echo "Make sure to fetch data into data folder first"; exit 1; }
-[[ -d "vvc" ]] || { echo "Make sure to fetch vvc and compile it into vvc folder first"; exit 1; }
 [[ -d "${ODIR}" ]] || { echo "Make sure to create ${ODIR} first"; exit 1; }
 
 ORIG_FILE="$(echo $FILE | cut -d "." -f 1).mkv"
@@ -55,23 +42,20 @@ HEIGHT=$(vval "Height")
 FRAMERATE=$(vval "Frame rate")
 END_FRAME=$(vval "Frame count")
 
-[[ "$PROFILE" = "RA" ]] && FLAGS="${RA_CF}" || FLAGS="${AI_CF}"
-[[ "$ALF" = "0" ]]  && FLAGS="${FLAGS} ${NOALF}" || FLAGS="${FLAGS} ${YESALF}"
-[[ "$DB" = "0" ]] && FLAGS="${FLAGS} ${NODB}" || FLAGS="${FLAGS} ${YESDB}"
-[[ "$SAO" = "0" ]] && FLAGS="${FLAGS} ${NOSAO}" || FLAGS="${FLAGS} ${YESSAO}"
-
 SUFFIX="${PROFILE}_QP${QP}_ALF${ALF}_DB${DB}_SAO${SAO}"
 DESTINATION="$(echo $FILE | cut -d "." -f 1 | cut -d "/" -f 2)_${SUFFIX}.vvc"
 RECON_FILE="$(echo $FILE | cut -d "." -f 1 | cut -d "/" -f 2)_${SUFFIX}_rec.yuv"
 LOG_FILE="$(echo $FILE | cut -d "." -f 1 | cut -d "/" -f 2)_${SUFFIX}.log"
 echo "Processing ${DESTINATION}..."
 
-${ENCODER_APP} ${ARGS} ${FLAGS} \
+CONFIGFILE="cfg/${PROFILE}_ALF${ALF}_DB${DB}_SAO${SAO}.cfg"
+
+${ENCODER_APP} -c ${CONFIGFILE} \
 	--InputFile=$FILE \
 	--BitstreamFile=$ODIR/$DESTINATION \
 	--ReconFile=$ODIR/$RECON_FILE \
-	-fr $FRAMERATE \
-	-f $END_FRAME \
-	-wdt $WIDTH \
-	-hgt $HEIGHT \
+	--FrameRate $FRAMERATE \
+	--FramesToBeEncoded $END_FRAME \
+	--SourceWidth $WIDTH \
+	--SourceHeight $HEIGHT \
 	--QP=$QP > $ODIR/$LOG_FILE

@@ -3,12 +3,23 @@
 
 # Script ensures VVC is built on the system
 
-build_vvc() {
-	git clone https://vcgit.hhi.fraunhofer.de/jvet/VVCSoftware_VTM.git vvc
-	mkdir -p vvc/build
-	cd vvc/build
+build_vvenc() {
+	git clone https://github.com/fraunhoferhhi/vvenc
+	mkdir -p vvenc/build
+	cd vvenc/build
 	cmake .. -DCMAKE_BUILD_TYPE=Release
-	make -j
+	make $1
+	cd ../..
 }
 
-[ -d "vvc" ] || build_vvc
+build_vvdec() {
+	git clone https://github.com/fraunhoferhhi/vvdec
+	mkdir -p vvdec/build
+	cd vvdec/build
+	cmake .. -DCMAKE_BUILD_TYPE=Release
+	make $1
+	cd ../..
+}
+
+[ -d "vvenc" ] || build_vvenc $1
+[ -d "vvdec" ] || build_vvdec $1

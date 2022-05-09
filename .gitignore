@@ -5,6 +5,8 @@ tasks
 done
 undone
 vvc/
+vvenc
+vvdec
 https://github.com/vipowueb/minflat-beamer
 # Byte-compiled / optimized / DLL files
 __pycache__/
