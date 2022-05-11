@@ -1,6 +1,7 @@
 # package data
 data
 encoded
+decoded
 tasks
 done
 undone
