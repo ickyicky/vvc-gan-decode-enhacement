@@ -20,3 +20,6 @@ class Configuration:
         default_factory=lambda: dir_path("encoded"),
         metadata={"type": dir_path, "help": "folder with encoded and decoded data"},
     )
+    ngpu: int = field(
+        default=0, metadata={"type": int, "help": "number of available gpus"}
+    )
