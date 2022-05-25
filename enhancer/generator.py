@@ -1,9 +1,51 @@
 from typing import List
 
+import torch
 import torch.nn as nn
 from torch import Tensor
 from torchvision.models.densenet import _DenseBlock, _Transition
 from pydantic import validate_arguments
+
+
+class ContextEncoder(nn.Module):
+    def __init__(
+        self, init_num_features: int = 5, num_features: int = 1, size: int = 128
+    ):
+        super().__init__()
+        self.main = nn.Sequential(
+            nn.ConvTranspose2d(
+                init_num_features,
+                size * 2,
+                kernel_size=4,
+                stride=1,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(size * 2),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(
+                size * 2,
+                size,
+                kernel_size=4,
+                stride=1,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(size * 2),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(
+                size,
+                num_features,
+                kernel_size=4,
+                stride=1,
+                padding=0,
+                bias=False,
+            ),
+            nn.Tanh(),
+        )
+
+    def forward(self, input):
+        return self.main(input)
 
 
 class DenseGenerator(nn.Module):
@@ -22,6 +64,8 @@ class DenseGenerator(nn.Module):
         bn_size: int = 4,
         drop_rate: float = 0,
         memory_efficient: bool = False,
+        metadata_size: int = 5,
+        metadata_features: int = 1,
     ) -> None:
         """Construct a DenseNet-based generator
 
@@ -64,8 +108,15 @@ class DenseGenerator(nn.Module):
             nn.Conv2d(num_features // 2, nc, kernel_size=7, padding=0),
             nn.Tanh(),
         ]
+        # define encoder for metadata
+        encoder = [
+            ContextEncoder(metadata_size, metadata_features, size),
+        ]
 
+        # init sequential models
         self.model = nn.Sequential(*model)
+        self.encoder = nn.Sequential(*encoder)
+
         # Official init from torch repo.
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -76,5 +127,8 @@ class DenseGenerator(nn.Module):
             elif isinstance(m, nn.Linear):
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.model(input)
+    def forward(self, x: Tensor, y: Tensor) -> Tensor:
+        encoded_metadata = self.encoder(y)
+        data = torch.cat(x, encoded_metadata)
+        result = self.model(data)
+        return result
