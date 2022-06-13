@@ -8,6 +8,7 @@ from tqdm import tqdm
 from typing import List, Tuple, Any, Dict, Optional
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
+from random import choice
 
 
 @validate_arguments
@@ -67,6 +68,8 @@ class VVCDataset(torch.utils.data.Dataset):
         self.chunk_width = chunk_width
         self.chunk_height = chunk_height
         self.chunk_border = chunk_border
+        self.chunk_actual_width = chunk_width + chunk_border
+        self.chunk_actual_height = chunk_height + chunk_border
 
         self.data_path = data_path
         self.encoded_path = encoded_path
@@ -80,24 +83,29 @@ class VVCDataset(torch.utils.data.Dataset):
         of each avalible video
         """
         chunks = []
+        files = os.listdir(self.encoded_path)
+        files = [choice(files) for _ in range(10)]
 
-        for file in tqdm(os.listdir(self.encoded_path)):
+        for file in tqdm(files):
             if not file.endswith(self.FILE_FORMAT):
                 continue
 
             metadata = self.load_metadata_for(file)
 
-            horizontal_chunks = math.ceil(metadata.width / self.chunk_width)
-            vertical_chunks = math.ceil(metadata.height / self.chunk_height)
+            horizontal_chunks = math.ceil(metadata.width / self.chunk_actual_width)
+            vertical_chunks = math.ceil(metadata.height / self.chunk_actual_height)
 
             for h_part in range(horizontal_chunks):
                 h_pos = min(
-                    (h_part * self.chunk_width, metadata.width - self.chunk_width)
+                    (
+                        h_part * self.chunk_actual_width,
+                        metadata.width - self.chunk_width,
+                    )
                 )
                 for v_part in range(vertical_chunks):
                     v_pos = min(
                         (
-                            v_part * self.chunk_height,
+                            v_part * self.chunk_actual_height,
                             metadata.height - self.chunk_height,
                         )
                     )
@@ -143,7 +151,9 @@ class VVCDataset(torch.utils.data.Dataset):
             sao=match_group["sao"],
         )
 
-    def load_frame_chunk(self, file_path: str, chunk: Chunk) -> Any:
+    def load_frame_chunk(
+        self, file_path: str, chunk: Chunk, bit10: bool = False
+    ) -> Any:
         """
         Loads chunk of frame as 2d np array
         """
@@ -151,36 +161,27 @@ class VVCDataset(torch.utils.data.Dataset):
         frame_size = chunk.metadata.width * nh
 
         with open(file_path, "rb") as f:
-            f.seek(chunk.frame * frame_size)
-            frame = np.frombuffer(f.read(frame_size), dtype=np.uint8)
-            frame.resize((nh, chunk.metadata.width))
+            if bit10:
+                f.seek(chunk.frame * frame_size * 2)
+                frame = np.frombuffer(f.read(frame_size * 2), dtype=np.uint16)
+                frame = np.round(frame / 4).astype(np.uint8)
+            else:
+                f.seek(chunk.frame * frame_size)
+                frame = np.frombuffer(f.read(frame_size), dtype=np.uint8)
 
-        if (
-            chunk.position[0] == 0
-            or chunk.position[1] == 0
-            or chunk.position[0] + self.chunk_height >= chunk.metadata.height
-            or chunk.position[1] + self.chunk_width >= chunk.metadata.width
-        ):
-            temp = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
-            temp = cv2.copyMakeBorder(
-                temp,
-                top=self.chunk_border,
-                bottom=self.chunk_border,
-                left=self.chunk_border,
-                right=self.chunk_border,
-                borderType=cv2.BORDER_REFLECT,
-            )
-            frame = cv2.cvtColor(temp, cv2.COLOR_RGB2YUV_I420)
-            start_w = chunk.position[0]
-            start_h = chunk.position[0] * 3 // 2
-        else:
-            start_w = chunk.position[0] - self.chunk_border
-            start_h = (chunk.position[0] - self.chunk_border) * 3 // 2
+        frame = frame.copy()
+        frame.resize((nh, chunk.metadata.width))
+        frame = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2YUV)
 
-        chunk_nh = (self.chunk_height + 2 * self.chunk_border) * 3 // 2
-        chunk_w = self.chunk_width + 2 * self.chunk_border
+        start_h = chunk.position[0]
+        start_w = chunk.position[1]
 
-        frame_chunk = frame[start_h:, start_w:][:chunk_nh, :chunk_w]
+        chunk_h = self.chunk_height
+        chunk_w = self.chunk_width
+
+        frame_chunk = frame[start_h:, start_w:, :][:chunk_h, :chunk_w, :]
+        frame_chunk = frame_chunk.transpose((2, 0, 1))
         return frame_chunk
 
     def load_chunk(self, chunk: Chunk) -> Tuple[Any, Any]:
@@ -194,7 +195,7 @@ class VVCDataset(torch.utils.data.Dataset):
         file_path = os.path.join(
             self.encoded_path, self.DECODED_FORMAT.format_map(asdict(chunk.metadata))
         )
-        frame_part = self.load_frame_chunk(file_path, chunk)
+        frame_part = self.load_frame_chunk(file_path, chunk, True)
         return self._to_torch(frame_part, orig_frame_part, chunk.metadata)
 
     def _metadata_to_np(self, metadata: Metadata) -> Any:
@@ -208,7 +209,7 @@ class VVCDataset(torch.utils.data.Dataset):
                 metadata.alf,
                 metadata.sao,
                 metadata.db,
-            ),
+            )
         )
 
     def _to_torch(
@@ -217,13 +218,15 @@ class VVCDataset(torch.utils.data.Dataset):
         """
         Representation for torch
         """
-        return {
-            "input": torch.as_tensor(_input.copy()).float().contiguous(),
-            "original": torch.as_tensor(original.copy()).float().contiguous(),
-            "metadata": torch.as_tensor(self._metadata_to_np(metadata))
+        return (
+            torch.as_tensor(_input.copy()).float().contiguous(),
+            torch.as_tensor(original.copy()).float().contiguous(),
+            torch.as_tensor(self._metadata_to_np(metadata))
             .float()
+            .unsqueeze(-1)
+            .unsqueeze(-1)
             .contiguous(),
-        }
+        )
 
     def __len__(self) -> int:
         return len(self.chunks)

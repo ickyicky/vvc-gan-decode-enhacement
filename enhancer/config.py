@@ -22,7 +22,7 @@ class DataConfiguration:
         metadata={"type": dir_path, "help": "folder with encoded and decoded data"},
     )
     batch_size: int = field(
-        default=1000,
+        default=10,
         metadata={"type": int, "help": "Size of each batch of data"},
     )
     num_workers: int = field(
@@ -55,4 +55,8 @@ class TrainingConfiguration(DataConfiguration):
     epochs: int = field(
         default=1,
         metadata={"type": int, "help": "Number of epochs for training"},
+    )
+    upload_rate: int = field(
+        default=100,
+        metadata={"type": int, "help": "After how many steps upload"},
     )

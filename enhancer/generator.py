@@ -2,50 +2,90 @@ from typing import List
 
 import torch
 import torch.nn as nn
+from math import sqrt
 from torch import Tensor
 from torchvision.models.densenet import _DenseBlock, _Transition
 from pydantic import validate_arguments
 
 
-class ContextEncoder(nn.Module):
-    def __init__(
-        self, init_num_features: int = 5, num_features: int = 1, size: int = 128
-    ):
+class _TransitionUp(nn.Sequential):
+    def __init__(self, num_input_features: int, num_output_features: int) -> None:
         super().__init__()
-        self.main = nn.Sequential(
-            nn.ConvTranspose2d(
-                init_num_features,
-                size * 2,
-                kernel_size=4,
-                stride=1,
-                padding=0,
-                bias=False,
-            ),
-            nn.BatchNorm2d(size * 2),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(
-                size * 2,
-                size,
-                kernel_size=4,
-                stride=1,
-                padding=0,
-                bias=False,
-            ),
-            nn.BatchNorm2d(size * 2),
-            nn.ReLU(True),
-            nn.ConvTranspose2d(
-                size,
-                num_features,
-                kernel_size=4,
-                stride=1,
-                padding=0,
-                bias=False,
-            ),
-            nn.Tanh(),
+        self.norm = nn.BatchNorm2d(num_input_features)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv = nn.ConvTranspose2d(
+            num_input_features, num_output_features, kernel_size=2, stride=2
         )
 
-    def forward(self, input):
-        return self.main(input)
+
+class EncoderBlock(nn.Sequential):
+    def __init__(
+        self,
+        num_input_features: int,
+        num_output_features: int,
+        kernel_size: int,
+        stride: int,
+        padding: int,
+    ) -> None:
+        super().__init__()
+        self.conv = nn.ConvTranspose2d(
+            num_input_features,
+            num_output_features,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+        )
+        self.norm = nn.BatchNorm2d(num_output_features)
+        self.relu = nn.ReLU(inplace=True)
+
+
+class MetadataEncoder(nn.Module):
+    """
+    Encoder of metadata
+    """
+
+    @validate_arguments
+    def __init__(
+        self,
+        metadata_size: int = 5,
+        metadata_features: int = 1,
+        init_num_features: int = 32,
+        size: int = 128,
+    ) -> None:
+        super().__init__()
+
+        num_blocks = int(sqrt(size / 8))
+        num_features = init_num_features * (2**num_blocks)
+
+        model = [
+            EncoderBlock(
+                metadata_size, num_features, kernel_size=4, stride=1, padding=0
+            )
+        ]
+        for i in range(num_blocks):
+            model.append(
+                EncoderBlock(
+                    num_features, num_features // 2, kernel_size=4, stride=2, padding=1
+                )
+            )
+            num_features = num_features // 2
+
+        model.append(
+            nn.Sequential(
+                nn.ConvTranspose2d(
+                    num_features,
+                    metadata_features,
+                    kernel_size=4,
+                    stride=2,
+                    padding=1,
+                ),
+                nn.Tanh(),
+            )
+        )
+        self.model = nn.Sequential(*model)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.model(x)
 
 
 class DenseGenerator(nn.Module):
@@ -56,16 +96,17 @@ class DenseGenerator(nn.Module):
     @validate_arguments
     def __init__(
         self,
-        growth_rate: int = 32,
-        init_num_features: int = 64,
         nc: int = 3,
         size: int = 128,
-        blocks_config: List[int] = (4, 4, 4, 4),
-        bn_size: int = 4,
+        init_num_features: int = 32,
+        growth_rate: int = 8,
+        bn_size: int = 2,
         drop_rate: float = 0,
         memory_efficient: bool = False,
         metadata_size: int = 5,
         metadata_features: int = 1,
+        up_blocks_config: List[int] = (4, 4),
+        down_blocks_config: List[int] = (4, 4),
     ) -> None:
         """Construct a DenseNet-based generator
 
@@ -75,47 +116,69 @@ class DenseGenerator(nn.Module):
         """
 
         super().__init__()
-        # define model
         num_features = init_num_features
-        model = [
-            nn.Conv2d(nc, num_features, kernel_size=7, stride=2, padding=3, bias=False),
+        # input block, doesnt resize
+        input_block = nn.Sequential(
+            nn.Conv2d(
+                nc + metadata_features,
+                num_features,
+                kernel_size=2,
+                stride=2,
+                padding=1,
+                bias=False,
+            ),
             nn.BatchNorm2d(num_features),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-        ]
+            nn.MaxPool2d(kernel_size=3, padding=1, stride=1),
+        )
 
-        for i, num_layers in enumerate(blocks_config):
-            block = _DenseBlock(
-                num_layers=num_layers,
-                num_input_features=num_features,
-                bn_size=bn_size,
-                growth_rate=growth_rate,
-                drop_rate=drop_rate,
-                memory_efficient=memory_efficient,
+        # blocks
+        parts = []
+        blocks_down = [[n, _Transition] for n in down_blocks_config]
+        blocks_down[-1][1] = None  # no transition at end
+        blocks_up = [[n, _TransitionUp] for n in up_blocks_config]
+        blocks_up[-1][1] = None  # no transition at end
+        blocks = blocks_down + blocks_up
+
+        for num_layers, transition in blocks:
+            parts.append(
+                _DenseBlock(
+                    num_layers=num_layers,
+                    num_input_features=num_features,
+                    bn_size=bn_size,
+                    growth_rate=growth_rate,
+                    drop_rate=drop_rate,
+                    memory_efficient=memory_efficient,
+                )
             )
-            model.append(block)
-            num_features = num_features + num_layers * growth_rate
-            if i != len(blocks_config) - 1:
-                model.append(
-                    _Transition(
-                        num_input_features=num_features,
-                        num_output_features=num_features // 2,
+            num_features += growth_rate * num_layers
+            if transition:
+                parts.append(
+                    transition(
+                        num_features,
+                        num_features // 2,
                     )
                 )
                 num_features = num_features // 2
 
-        model += [
-            nn.Conv2d(num_features // 2, nc, kernel_size=7, padding=0),
+        # output part
+        output_block = nn.Sequential(
+            nn.ConvTranspose2d(num_features, nc, kernel_size=2, stride=2),
             nn.Tanh(),
-        ]
-        # define encoder for metadata
-        encoder = [
-            ContextEncoder(metadata_size, metadata_features, size),
-        ]
+        )
 
-        # init sequential models
-        self.model = nn.Sequential(*model)
-        self.encoder = nn.Sequential(*encoder)
+        self.model = nn.Sequential(
+            input_block,
+            nn.Sequential(*parts),
+            output_block,
+        )
+
+        self.encoder = MetadataEncoder(
+            metadata_size=metadata_size,
+            metadata_features=metadata_features,
+            init_num_features=init_num_features,
+            size=size,
+        )
 
         # Official init from torch repo.
         for m in self.modules():
@@ -127,8 +190,7 @@ class DenseGenerator(nn.Module):
             elif isinstance(m, nn.Linear):
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x: Tensor, y: Tensor) -> Tensor:
-        encoded_metadata = self.encoder(y)
-        data = torch.cat(x, encoded_metadata)
-        result = self.model(data)
-        return result
+    def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
+        encoded = self.encoder(metadata)
+        data = torch.cat((input_, encoded), 1)
+        return self.model(data)

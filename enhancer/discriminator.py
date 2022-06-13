@@ -1,35 +1,51 @@
 import torch.nn as nn
 
 
+def DiscriminatorBlock(in_features, out_features, padding=1):
+    return nn.Sequential(
+        nn.Conv2d(
+            in_features,
+            out_features,
+            kernel_size=4,
+            stride=2,
+            padding=padding,
+            bias=False,
+        ),
+        nn.BatchNorm2d(out_features),
+        nn.LeakyReLU(0.2, inplace=True),
+    )
+
+
 class Discriminator(nn.Module):
     def __init__(
         self,
         nc: int = 3,
         size: int = 128,
-        depth_features: int = 64,
-        ndf: int = 64,
     ):
         super().__init__()
-        self.model = nn.Sequential(
-            # input is (nc) x size x size
-            nn.Conv2d(nc, depth_features, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (depth_features) x size/2 x size/2
-            nn.Conv2d(ndf, depth_features * 2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(depth_features * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (depth_features/2) x size/4 x size/4
-            nn.Conv2d(depth_features * 2, depth_features * 4, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(depth_features * 4),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (depth_features/2) x size/4 x size/4
-            nn.Conv2d(depth_features * 4, depth_features * 8, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(depth_features * 8),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*8) x 4 x 4
-            nn.Conv2d(depth_features * 8, 1, 4, 1, 0, bias=False),
+
+        blocks = [DiscriminatorBlock(nc, size)]
+
+        cur_size = size // 2
+        cur_features = size
+
+        while True:
+            blocks.append(DiscriminatorBlock(cur_features, cur_features * 2))
+            cur_features *= 2
+            cur_size = cur_size // 2
+            if cur_size == 4:
+                break
+
+        parts = [
+            *blocks,
+            nn.Conv2d(cur_features, 1, kernel_size=4, stride=1, padding=0, bias=False),
+            nn.Flatten(),
             nn.Sigmoid(),
+        ]
+
+        self.model = nn.Sequential(
+            *parts,
         )
 
-    def forward(self, input):
-        return self.model(input)
+    def forward(self, x):
+        return self.model(x)

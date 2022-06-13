@@ -6,7 +6,6 @@ import torch
 import wandb
 
 from dataclasses import asdict
-from typing import Optional
 
 from .dataset import VVCDataset
 from .config import TrainingConfiguration
@@ -22,14 +21,25 @@ def get_dataloader(
     num_workers: int = 4,
 ):
     dataset = VVCDataset(data_path, encoded_path)
-    return DataLoader(
+    return (
+        DataLoader(
+            dataset,
+            shuffle=True,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=True,
+        ),
         dataset,
-        shuffle=True,
-        drop_last=True,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=True,
     )
+
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find("Conv") != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find("BatchNorm") != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
 
 
 def train_net(
@@ -38,7 +48,10 @@ def train_net(
     device,
     config: TrainingConfiguration,
 ):
-    data_loader = get_dataloader(**asdict(config.data))
+    generator.to(device=device)
+    discriminator.to(device=device)
+
+    data_loader, dataset = get_dataloader(**asdict(config.data))
     criterion = nn.BCELoss()
     real_label, fake_label = 1.0, 0.0
 
@@ -59,15 +72,16 @@ def train_net(
         )
     )
 
+    step = 0
     for epoch in range(1, config.epochs + 1):
         with tqdm(
-            total=len(data_loader), desc=f"Epoch {epoch}/{config.epochs}", unit="chunk"
+            total=len(dataset), desc=f"Epoch {epoch}/{config.epochs}", unit="chunk"
         ) as pbar:
             for batch in data_loader:
-                inputs = batch["input"]
-                originals = batch["original"]
-                metadatas = batch["metadata"]
-                _batch_size = batch.size(0)
+                inputs = batch[0]
+                originals = batch[1]
+                metadatas = batch[2]
+                _batch_size = inputs.shape[0]
 
                 # perform discriminator training on all original data
                 discriminator.zero_grad()
@@ -75,7 +89,8 @@ def train_net(
                 label = torch.full(
                     (_batch_size,), real_label, dtype=torch.float, device=device
                 )
-                output = discriminator(originals).view(-1)
+                output = discriminator(originals)
+                output = output.view(-1)
                 err_dis_real = criterion(output, label)
                 err_dis_real.backward()
                 D_x = output.mean().item()
@@ -101,39 +116,43 @@ def train_net(
                 err_gen.backward()
                 D_G_z2 = output.mean().item()
                 optimizer_g.step()
+                pbar.update(_batch_size)
 
-                # update training stats
-                pbar.update(inputs.shape(0))
-                experiment.log(
-                    {
-                        "learning rate": {
-                            "generator": optimizer_g.param_groups[0]["lr"],
-                            "discriminator": optimizer_d.param_groups[0]["lr"],
-                        },
-                        "images": {
-                            "input": wandb.Image(inputs[0].cpu()),
-                            "real": wandb.Image(originals[0].cpu()),
-                            "fake": wandb.Image(fake[0].cpu()),
-                        },
-                        "epoch": epoch,
-                        "D": {
-                            "x": D_x,
-                            "z1": D_G_z1,
-                            "z2": D_G_z2,
-                        },
-                        "error": {
-                            "dis_real": err_dis_real.item(),
-                            "dis_fake": err_dis_fake.item(),
-                            "dis": err_dis.item(),
-                            "gen": err_gen.item(),
-                        },
-                    }
-                )
+                step += 1
+                if step % config.upload_rate == 0:
+                    # update training stats
+                    experiment.log(
+                        {
+                            "learning rate": {
+                                "generator": optimizer_g.param_groups[0]["lr"],
+                                "discriminator": optimizer_d.param_groups[0]["lr"],
+                            },
+                            "images": {
+                                "input": wandb.Image(inputs[0].cpu()),
+                                "real": wandb.Image(originals[0].cpu()),
+                                "fake": wandb.Image(fake[0].cpu()),
+                            },
+                            "epoch": epoch,
+                            "D": {
+                                "x": D_x,
+                                "z1": D_G_z1,
+                                "z2": D_G_z2,
+                            },
+                            "error": {
+                                "dis_real": err_dis_real.item(),
+                                "dis_fake": err_dis_fake.item(),
+                                "dis": err_dis.item(),
+                                "gen": err_gen.item(),
+                            },
+                        }
+                    )
 
 
 if __name__ == "__main__":
     config = TrainingConfiguration.parse_args()
     discriminator = Discriminator()
+    discriminator.apply(weights_init)
     generator = DenseGenerator()
+    generator.apply(weights_init)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_net(generator, discriminator, device, config)
