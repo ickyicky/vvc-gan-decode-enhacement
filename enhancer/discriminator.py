@@ -7,6 +7,7 @@ class Discriminator(nn.Module):
         nc: int = 3,
         size: int = 128,
         depth_features: int = 64,
+        ndf: int = 64,
     ):
         super().__init__()
         self.model = nn.Sequential(

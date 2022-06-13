@@ -8,6 +8,7 @@ undone
 vvc/
 vvenc
 vvdec
+wandb
 https://github.com/vipowueb/minflat-beamer
 # Byte-compiled / optimized / DLL files
 __pycache__/

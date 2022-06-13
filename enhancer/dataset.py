@@ -4,7 +4,8 @@ import re
 import math
 import numpy as np
 import cv2
-from typing import List, Tuple, Any
+from tqdm import tqdm
+from typing import List, Tuple, Any, Dict, Optional
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 
@@ -39,36 +40,33 @@ class VVCDataset(torch.utils.data.Dataset):
     decoding YUV files etc, pretty time consuming tasks
     """
 
+    INFO_HEIGHT_REGEX: str = re.compile(r"^\s*Height\s*:\s*(\d+)\s*$")
+    INFO_WIDTH_REGEX: str = re.compile(r"^\s*Width\s*:\s*(\d+)\s*$")
+    INFO_FRAMES_REGEX: str = re.compile(r"^\s*Frame count\s*:\s*(\d+)\s*$")
+    ENCODED_REGEX: str = re.compile(
+        r"^(?P<name>\d+P_\w+)_(?P<profile>AI|RA)_QP(?P<qp>\d{2})_ALF(?P<alf>\d{1})_DB(?P<db>\d{1})_SAO(?P<sao>\d{1})_rec.yuv"
+    )
+
+    METADATA_FORMAT: str = "{name}.mkv.info"
+    DECODED_FORMAT: str = (
+        "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}_rec.yuv"
+    )
+    ORIGINAL_FORMAT: str = "{file}.yuv"
+    FILE_FORMAT: str = "yuv"
+
     def __init__(
         self,
         data_path: str,
         encoded_path: str,
-        file_format: str = "yuv",
         chunk_width: int = 128,
         chunk_height: int = 128,
         chunk_border: int = 8,
-        encoded_regex: str = "^(?P<name>\d+P_\w+)_(?P<profile>AI|RA)_QP(?P<qp>\d{2})_ALF(?P<alf>\d{1})_DB(?P<db>\d{1})_SAO(?P<sao>\d{1})_rec.yuv",
-        metadata_format: str = "{name}.mkv.info",
-        info_height_regex: str = "^\s*Height\s*:\s*(\d+)\s*$",
-        info_width_regex: str = "^\s*Width\s*:\s*(\d+)\s*$",
-        info_frames_regex: str = "^\s*Frame count\s*:\s*(\d+)\s*$",
-        decoded_format: str = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}_rec.yuv",
-        original_format: str = "{file}.yuv",
     ) -> None:
         super().__init__()
 
-        self.file_format = file_format
         self.chunk_width = chunk_width
         self.chunk_height = chunk_height
         self.chunk_border = chunk_border
-
-        self.encoded_regex = re.compile(encoded_regex)
-        self.metadata_format = metadata_format
-        self.info_height_regex = re.compile(info_height_regex)
-        self.info_width_regex = re.compile(info_width_regex)
-        self.info_frames_regex = re.compile(info_frames_regex)
-        self.decoded_format = decoded_format
-        self.original_format = original_format
 
         self.data_path = data_path
         self.encoded_path = encoded_path
@@ -83,8 +81,8 @@ class VVCDataset(torch.utils.data.Dataset):
         """
         chunks = []
 
-        for file in os.listdir(self.encoded_path):
-            if not file.endswith(self.file_format):
+        for file in tqdm(os.listdir(self.encoded_path)):
+            if not file.endswith(self.FILE_FORMAT):
                 continue
 
             metadata = self.load_metadata_for(file)
@@ -116,21 +114,21 @@ class VVCDataset(torch.utils.data.Dataset):
         """
         Loads metadata for given file
         """
-        m = re.match(self.encoded_regex, file)
-        assert m, f"Invalid file name: {file} not matching regex: {self.encoded_regex}"
+        m = re.match(self.ENCODED_REGEX, file)
+        assert m, f"Invalid file name: {file} not matching regex: {self.ENCODED_REGEX}"
         match_group = m.groupdict()
 
         height = width = frames = None
 
         with open(
-            os.path.join(self.data_path, self.metadata_format.format_map(match_group))
+            os.path.join(self.data_path, self.METADATA_FORMAT.format_map(match_group))
         ) as f:
             for line in f.readlines():
-                h = re.match(self.info_height_regex, line)
+                h = re.match(self.INFO_HEIGHT_REGEX, line)
                 height = h.groups()[0] if h else height
-                w = re.match(self.info_width_regex, line)
+                w = re.match(self.INFO_WIDTH_REGEX, line)
                 width = w.groups()[0] if w else width
-                f = re.match(self.info_frames_regex, line)
+                f = re.match(self.INFO_FRAMES_REGEX, line)
                 frames = f.groups()[0] if f else frames
 
         return Metadata(
@@ -185,48 +183,61 @@ class VVCDataset(torch.utils.data.Dataset):
         frame_chunk = frame[start_h:, start_w:][:chunk_nh, :chunk_w]
         return frame_chunk
 
-    def load_decoded_chunk(self, chunk: Chunk) -> Tuple[Any, Any]:
-        """
-        Loads decoded chunk
-        """
-        # TODO because right now it is in 10 bit color...
-        file_path = os.path.join(
-            self.encoded_path, self.decoded_format.format_map(asdict(chunk.metadata))
-        )
-        frame_part = self.load_frame_chunk(file_path, chunk)
-        return (frame_part, chunk.metadata)
-
-    def load_original_chunk(self, chunk: Chunk) -> Tuple[Any, Any]:
+    def load_chunk(self, chunk: Chunk) -> Tuple[Any, Any]:
         """
         Loads original chunk
         """
+        orig_file_path = os.path.join(
+            self.data_path, self.ORIGINAL_FORMAT.format_map(asdict(chunk.metadata))
+        )
+        orig_frame_part = self.load_frame_chunk(orig_file_path, chunk)
         file_path = os.path.join(
-            self.data_path, self.original_format.format_map(asdict(chunk.metadata))
+            self.encoded_path, self.DECODED_FORMAT.format_map(asdict(chunk.metadata))
         )
         frame_part = self.load_frame_chunk(file_path, chunk)
-        return (frame_part, chunk.metadata)
+        return self._to_torch(frame_part, orig_frame_part, chunk.metadata)
+
+    def _metadata_to_np(self, metadata: Metadata) -> Any:
+        """
+        Numpy representation of metadata
+        """
+        return np.array(
+            (
+                0 if metadata.profile == "RA" else 1,
+                metadata.qp,
+                metadata.alf,
+                metadata.sao,
+                metadata.db,
+            ),
+        )
+
+    def _to_torch(
+        self, _input: Any, original: Any, metadata: Metadata
+    ) -> Dict[Any, Any]:
+        """
+        Representation for torch
+        """
+        return {
+            "input": torch.as_tensor(_input.copy()).float().contiguous(),
+            "original": torch.as_tensor(original.copy()).float().contiguous(),
+            "metadata": torch.as_tensor(self._metadata_to_np(metadata))
+            .float()
+            .contiguous(),
+        }
 
     def __len__(self) -> int:
         return len(self.chunks)
 
-
-class VVCDecodedDataset(VVCDataset):
     def __getitem__(self, idx: int) -> Tuple[Any, Any]:
         chunk = self.chunks[idx]
-        return self.load_decoded_chunk(chunk)
-
-
-class VVCOriginalDataset(VVCDataset):
-    def __getitem__(self, idx: int) -> Tuple[Any, Any]:
-        chunk = self.chunks[idx]
-        return self.load_original_chunk(chunk)
+        return self.load_chunk(chunk)
 
 
 if __name__ == "__main__":
     import sys
     from pprint import pprint
 
-    d = VVCOriginalDataset(*sys.argv[1:])
+    d = VVCDataset(*sys.argv[1:])
     pprint(d)
     len_d = len(d)
     pprint(len_d)
