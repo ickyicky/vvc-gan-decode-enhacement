@@ -194,15 +194,22 @@ class VVCDataset:
         """
         Loads original chunk
         """
-        orig_file_path = os.path.join(
-            self.data_path, self.ORIGINAL_FORMAT.format_map(asdict(chunk.metadata))
-        )
-        orig_frame_part = self.load_frame_chunk(orig_file_path, chunk)
-        file_path = os.path.join(
-            self.encoded_path, self.DECODED_FORMAT.format_map(asdict(chunk.metadata))
-        )
-        frame_part = self.load_frame_chunk(file_path, chunk, True)
+        orig_frame_part = self.load_orig_part(chunk)
+        frame_part = self.load_decoded_part(chunk)
         return (frame_part, orig_frame_part, chunk.metadata)
+
+    def _load_part(
+        self, chunk: Chunk, path_: str, format_template: str, bit10=False
+    ) -> Any:
+        path = os.path.join(path_, format_template.format_map(asdict(chunk.metadata)))
+        part = self.load_frame_chunk(path, chunk, bit10)
+        return part
+
+    def load_orig_part(self, chunk: Chunk) -> Any:
+        return self._load_part(chunk, self.data_path, self.ORIGINAL_FORMAT, False)
+
+    def load_decoded_part(self, chunk: Chunk) -> Any:
+        return self._load_part(chunk, self.encoded_path, self.DECODED_FORMAT, True)
 
     def __len__(self) -> int:
         return len(self.chunks)
@@ -212,16 +219,17 @@ class VVCDataset:
         return self.load_chunk(chunk)
 
     def save_chunk(self, chunk: Chunk) -> None:
-        frame_part, orig_frame_part, _ = self.load_chunk(chunk)
         name = self.CHUNK_NAME.format_map(
             dict(**asdict(chunk.metadata), **asdict(chunk))
         )
 
         if not os.path.exists(os.path.join(self.chunk_folder, name)):
+            frame_part = self.load_decoded_part(chunk)
             with open(os.path.join(self.chunk_folder, name), "wb") as f:
                 np.save(f, frame_part)
 
         if not os.path.exists(os.path.join(self.orig_chunk_folder, name)):
+            orig_frame_part = self.load_orig_part(chunk)
             with open(os.path.join(self.orig_chunk_folder, name), "wb") as f:
                 np.save(f, orig_frame_part)
 
