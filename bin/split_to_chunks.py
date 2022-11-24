@@ -53,7 +53,7 @@ class VVCDataset:
     ORIGINAL_FORMAT: str = "{file}.yuv"
     FILE_FORMAT: str = "yuv"
 
-    CHUNK_NAME = "{file}_{frame}_{position[0]}_{position[1]}.npy"
+    CHUNK_NAME = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}_{frame}_{position[0]}_{position[1]}.npy"
 
     def __init__(
         self,
