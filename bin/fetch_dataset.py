@@ -40,7 +40,11 @@ def download_videos(target: str):
         target_filename = os.path.join(target, f"{resolution}_{category}.mkv")
 
         if os.path.exists(target_filename):
-            should_proceed = input(f"file {target_filename} already exists, overwrite it? (y/n)").strip().upper()
+            should_proceed = (
+                input(f"file {target_filename} already exists, overwrite it? (y/n)")
+                .strip()
+                .upper()
+            )
             if should_proceed != "Y":
                 continue
 
