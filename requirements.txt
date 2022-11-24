@@ -1,4 +1,3 @@
-pytorch
 tqdm
 argparse-dataclass
 pydantic

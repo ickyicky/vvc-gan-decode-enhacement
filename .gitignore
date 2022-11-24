@@ -5,6 +5,9 @@ decoded
 tasks
 done
 undone
+chunks
+orig_chunks
+metadata
 vvc/
 vvenc
 vvdec

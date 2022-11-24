@@ -45,17 +45,15 @@ class VVCDataset:
     INFO_WIDTH_REGEX: str = re.compile(r"^\s*Width\s*:\s*(\d+)\s*$")
     INFO_FRAMES_REGEX: str = re.compile(r"^\s*Frame count\s*:\s*(\d+)\s*$")
     ENCODED_REGEX: str = re.compile(
-        r"^(?P<name>\d+P_\w+)_(?P<profile>AI|RA)_QP(?P<qp>\d{2})_ALF(?P<alf>\d{1})_DB(?P<db>\d{1})_SAO(?P<sao>\d{1})_rec.yuv"
+        r"^(?P<name>\d+P_\w+)_(?P<profile>AI|RA)_QP(?P<qp>\d{2})_ALF(?P<alf>\d{1})_DB(?P<db>\d{1})_SAO(?P<sao>\d{1}).yuv"
     )
 
     METADATA_FORMAT: str = "{name}.mkv.info"
-    DECODED_FORMAT: str = (
-        "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}_rec.yuv"
-    )
+    DECODED_FORMAT: str = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}.yuv"
     ORIGINAL_FORMAT: str = "{file}.yuv"
     FILE_FORMAT: str = "yuv"
 
-    CHUNK_NAME = "{file}_{frame}_{position[0]}_{position[1]}.yuv"
+    CHUNK_NAME = "{file}_{frame}_{position[0]}_{position[1]}.npy"
 
     def __init__(
         self,
@@ -93,7 +91,6 @@ class VVCDataset:
         """
         chunks = []
         files = os.listdir(self.encoded_path)
-        files = [choice(files) for _ in range(10)]
 
         for file in tqdm(files):
             if not file.endswith(self.FILE_FORMAT):
@@ -220,10 +217,21 @@ class VVCDataset:
             dict(**asdict(chunk.metadata), **asdict(chunk))
         )
 
-        cv2.imwrite(os.path.join(self.chunk_folder, name), frame_part)
-        cv2.imwrite(os.path.join(self.orig_chunk_folder, name), orig_frame_part)
-        with open(os.path.join(self.metadata_folder, name)) as f:
-            json.dump(asdict(chunk), f)
+        if not os.path.exists(os.path.join(self.chunk_folder, name)):
+            with open(os.path.join(self.chunk_folder, name), "wb") as f:
+                np.save(f, frame_part)
+
+        if not os.path.exists(os.path.join(self.orig_chunk_folder, name)):
+            with open(os.path.join(self.orig_chunk_folder, name), "wb") as f:
+                np.save(f, orig_frame_part)
+
+        if not os.path.exists(
+            os.path.join(self.metadata_folder, name.replace("npy", "json"))
+        ):
+            with open(
+                os.path.join(self.metadata_folder, name.replace("npy", "json")), "w"
+            ) as f:
+                json.dump(asdict(chunk), f)
 
 
 if __name__ == "__main__":
@@ -234,8 +242,6 @@ if __name__ == "__main__":
     pprint(d)
     len_d = len(d)
     pprint(len_d)
-    import random
 
-    idx = random.randint(0, len_d)
-    pprint(d.chunks[idx])
-    pprint(d[idx])
+    for chunk in tqdm(d.chunks):
+        d.save_chunk(chunk)
