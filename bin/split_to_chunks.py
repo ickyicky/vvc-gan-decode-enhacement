@@ -54,6 +54,8 @@ class VVCDataset:
     FILE_FORMAT: str = "yuv"
 
     CHUNK_NAME = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}_{frame}_{position[0]}_{position[1]}.npy"
+    ORIG_CHUNK_NAME = "{file}_{frame}_{position[0]}_{position[1]}.npy"
+    METADATA_NAME = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}_{frame}_{position[0]}_{position[1]}.json"
 
     def __init__(
         self,
@@ -219,25 +221,31 @@ class VVCDataset:
         return self.load_chunk(chunk)
 
     def save_chunk(self, chunk: Chunk) -> None:
-        name = self.CHUNK_NAME.format_map(
+        chunk_name = self.CHUNK_NAME.format_map(
+            dict(**asdict(chunk.metadata), **asdict(chunk))
+        )
+        orig_chunk_name = self.ORIG_CHUNK_NAME.format_map(
+            dict(**asdict(chunk.metadata), **asdict(chunk))
+        )
+        metadata_name = self.METADATA_NAME.format_map(
             dict(**asdict(chunk.metadata), **asdict(chunk))
         )
 
-        if not os.path.exists(os.path.join(self.chunk_folder, name)):
+        if not os.path.exists(os.path.join(self.chunk_folder, chunk_name)):
             frame_part = self.load_decoded_part(chunk)
-            with open(os.path.join(self.chunk_folder, name), "wb") as f:
+            with open(os.path.join(self.chunk_folder, chunk_name), "wb") as f:
                 np.save(f, frame_part)
 
-        if not os.path.exists(os.path.join(self.orig_chunk_folder, name)):
+        if not os.path.exists(os.path.join(self.orig_chunk_folder, orig_chunk_name)):
             orig_frame_part = self.load_orig_part(chunk)
-            with open(os.path.join(self.orig_chunk_folder, name), "wb") as f:
+            with open(os.path.join(self.orig_chunk_folder, orig_chunk_name), "wb") as f:
                 np.save(f, orig_frame_part)
 
         if not os.path.exists(
-            os.path.join(self.metadata_folder, name.replace("npy", "json"))
+            os.path.join(self.metadata_folder, metadata_name)
         ):
             with open(
-                os.path.join(self.metadata_folder, name.replace("npy", "json")), "w"
+                os.path.join(self.metadata_folder, metadata_name), "w"
             ) as f:
                 json.dump(asdict(chunk), f)
 
