@@ -9,6 +9,7 @@ from typing import List, Tuple, Any, Dict, Optional
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 from random import choice
+from pathlib import Path
 
 
 @validate_arguments
@@ -53,9 +54,9 @@ class VVCDataset:
     ORIGINAL_FORMAT: str = "{file}.yuv"
     FILE_FORMAT: str = "yuv"
 
-    CHUNK_NAME = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}_{frame}_{position[0]}_{position[1]}.npy"
-    ORIG_CHUNK_NAME = "{file}_{frame}_{position[0]}_{position[1]}.npy"
-    METADATA_NAME = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}_{frame}_{position[0]}_{position[1]}.json"
+    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.npy"
+    ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.npy"
+    METADATA_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.json"
 
     def __init__(
         self,
@@ -232,22 +233,48 @@ class VVCDataset:
         )
 
         if not os.path.exists(os.path.join(self.chunk_folder, chunk_name)):
+            fname = os.path.join(self.chunk_folder, chunk_name)
             frame_part = self.load_decoded_part(chunk)
-            with open(os.path.join(self.chunk_folder, chunk_name), "wb") as f:
-                np.save(f, frame_part)
+            folder = os.path.dirname(fname)
+            Path(folder).mkdir(parents=True, exist_ok=True)
+
+            old_filename = os.path.join(self.chunk_folder, chunk_name.replace("/", "_"))
+            if os.path.exists(old_filename):
+                os.rename(old_filename, fname)
+            else:
+                with open(fname, "wb") as f:
+                    np.save(f, frame_part)
 
         if not os.path.exists(os.path.join(self.orig_chunk_folder, orig_chunk_name)):
+            fname = os.path.join(self.orig_chunk_folder, orig_chunk_name)
             orig_frame_part = self.load_orig_part(chunk)
-            with open(os.path.join(self.orig_chunk_folder, orig_chunk_name), "wb") as f:
-                np.save(f, orig_frame_part)
+            folder = os.path.dirname(fname)
+            Path(folder).mkdir(parents=True, exist_ok=True)
 
-        if not os.path.exists(
-            os.path.join(self.metadata_folder, metadata_name)
-        ):
-            with open(
-                os.path.join(self.metadata_folder, metadata_name), "w"
-            ) as f:
-                json.dump(asdict(chunk), f)
+            old_filename = os.path.join(
+                self.orig_chunk_folder, orig_chunk_name.replace("/", "_")
+            )
+            if os.path.exists(old_filename):
+                os.rename(old_filename, fname)
+            else:
+                with open(fname, "wb") as f:
+                    np.save(f, orig_frame_part)
+
+        if not os.path.exists(os.path.join(self.metadata_folder, metadata_name)):
+            fname = os.path.join(self.metadata_folder, metadata_name)
+            folder = os.path.dirname(fname)
+            Path(folder).mkdir(parents=True, exist_ok=True)
+
+            old_filename = os.path.join(
+                self.metadata_folder, metadata_name.replace("/", "_")
+            )
+            if os.path.exists(old_filename):
+                os.rename(old_filename, fname)
+            else:
+                with open(fname, "wb") as f:
+                    np.save(f, orig_frame_part)
+                with open(fname, "w") as f:
+                    json.dump(asdict(chunk), f)
 
 
 if __name__ == "__main__":
