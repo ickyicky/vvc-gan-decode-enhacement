@@ -271,8 +271,6 @@ class VVCDataset:
             if os.path.exists(old_filename):
                 os.rename(old_filename, fname)
             else:
-                with open(fname, "wb") as f:
-                    np.save(f, orig_frame_part)
                 with open(fname, "w") as f:
                     json.dump(asdict(chunk), f)
 
