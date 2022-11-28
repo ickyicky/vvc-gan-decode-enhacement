@@ -55,7 +55,7 @@ class VVCDataset:
     FILE_FORMAT: str = "yuv"
 
     CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.npy"
-    METADATA_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.json"
+    ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.json"
 
     def __init__(
         self,
