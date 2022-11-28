@@ -55,7 +55,6 @@ class VVCDataset:
     FILE_FORMAT: str = "yuv"
 
     CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.npy"
-    ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.npy"
     METADATA_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.json"
 
     def __init__(
@@ -64,7 +63,6 @@ class VVCDataset:
         encoded_path: str,
         chunk_folder: str,
         orig_chunk_folder: str,
-        metadata_folder: str,
         chunk_width: int = 128,
         chunk_height: int = 128,
         chunk_border: int = 8,
@@ -83,7 +81,6 @@ class VVCDataset:
 
         self.chunk_folder = chunk_folder
         self.orig_chunk_folder = orig_chunk_folder
-        self.metadata_folder = metadata_folder
 
     def load_chunks(self) -> List[Chunk]:
         """
@@ -259,20 +256,6 @@ class VVCDataset:
             else:
                 with open(fname, "wb") as f:
                     np.save(f, orig_frame_part)
-
-        if not os.path.exists(os.path.join(self.metadata_folder, metadata_name)):
-            fname = os.path.join(self.metadata_folder, metadata_name)
-            folder = os.path.dirname(fname)
-            Path(folder).mkdir(parents=True, exist_ok=True)
-
-            old_filename = os.path.join(
-                self.metadata_folder, metadata_name.replace("/", "_")
-            )
-            if os.path.exists(old_filename):
-                os.rename(old_filename, fname)
-            else:
-                with open(fname, "w") as f:
-                    json.dump(asdict(chunk), f)
 
 
 if __name__ == "__main__":
