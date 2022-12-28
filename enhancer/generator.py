@@ -102,11 +102,10 @@ class DenseGenerator(nn.Module):
         growth_rate: int = 8,
         bn_size: int = 2,
         drop_rate: float = 0,
-        memory_efficient: bool = False,
         metadata_size: int = 5,
         metadata_features: int = 1,
-        up_blocks_config: List[int] = (4, 4),
-        down_blocks_config: List[int] = (4, 4),
+        up_blocks_config: List[int] = (2, 2),
+        down_blocks_config: List[int] = (2, 2),
     ) -> None:
         """Construct a DenseNet-based generator
 
@@ -148,7 +147,6 @@ class DenseGenerator(nn.Module):
                     bn_size=bn_size,
                     growth_rate=growth_rate,
                     drop_rate=drop_rate,
-                    memory_efficient=memory_efficient,
                 )
             )
             num_features += growth_rate * num_layers
@@ -194,3 +192,13 @@ class DenseGenerator(nn.Module):
         encoded = self.encoder(metadata)
         data = torch.cat((input_, encoded), 1)
         return self.model(data)
+
+
+if __name__ == "__main__":
+    x = torch.rand((1, 3, 128, 128))
+    m = torch.rand((1, 5, 1, 1))
+    g = DenseGenerator()
+    print(g(x, m).shape)
+    from torchsummary import summary
+
+    summary(g, [(3, 128, 128), (5, 1, 1)])
