@@ -9,15 +9,13 @@ from typing import List, Tuple, Any, Dict, Optional
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 from random import choice
+from glob import glob
 
 
 @validate_arguments
 @dataclass
 class Metadata:
     file: str
-    width: int
-    height: int
-    frames: int
     profile: str
     qp: int
     alf: bool
@@ -41,19 +39,74 @@ class VVCDataset(torch.utils.data.Dataset):
     decoding YUV files etc, pretty time consuming tasks
     """
 
+    CHUNK_GLOB = "{folder}/*/*.yuv"
+    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.yuv"
+    ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.yuv"
+
     def __init__(
         self,
         chunk_folder: str,
         orig_chunk_folder: str,
-        metadata_folder: str,
+        chunk_height: int = 128,
+        chunk_width: int = 128,
     ) -> None:
         super().__init__()
 
         self.chunk_folder = chunk_folder
         self.orig_chunk_folder = orig_chunk_folder
-        self.metadata_folder = metadata_folder
+
+        self.chunk_height = chunk_height
+        self.chunk_width = chunk_width
 
         self.chunks = self.load_chunks()
+
+    def load_chunks(self) -> List[Chunk]:
+        """load_chunks.
+        Loads list of available chunks
+
+        :rtype: List[Chunk]
+        """
+        chunks = []
+
+        for fname in tqdm(glob(self.CHUNK_GLOB.format(folder=self.chunk_folder))):
+            fname, profiles, position = fname.split("/")
+            profile, qp, alf, db, sao = profiles.split("_")
+            frame, pos0, pos1 = position.split(".")[0].split("_")
+
+            metadata = Metadata(
+                file=fname,
+                profile=profile,
+                qp=int(qp[2:]),
+                alf=bool(int(alf[3:])),
+                sao=bool(int(sao[3:])),
+                db=bool(int(db[2:])),
+            )
+            chunk = Chunk(
+                position=(int(pos0), int(pos1)),
+                metadata=metadata,
+                frame=int(frame),
+            )
+            chunks.append(chunk)
+
+        return chunks
+
+    def load_chunk(self, chunk: Chunk) -> Tuple[Any, Any, Any]:
+        chunk_path = self.CHUNK_NAME.format_map(
+            dict(**asdict(chunk), **asdict(chunk.metadata))
+        )
+        orig_chunk_path = self.ORIG_CHUNK_NAME.format_map(
+            dict(**asdict(chunk), **asdict(chunk.metadata))
+        )
+
+        with open(chunk_path, "rb") as f:
+            _chunk = np.frombuffer(f.read())
+            _chunk.resize((self.chunk_height, self.chunk_width))
+
+        with open(orig_chunk_path, "rb") as f:
+            orig_chunk = np.frombuffer(f.read())
+            orig_chunk.resize((self.chunk_height, self.chunk_width))
+
+        return (_chunk, orig_chunk, chunk.metadata)
 
     def _metadata_to_np(self, metadata: Metadata) -> Any:
         """
@@ -90,7 +143,7 @@ class VVCDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[Any, Any]:
         chunk = self.chunks[idx]
-        return chunk
+        return self._to_torch(*self.load_chunk(chunk))
 
 
 if __name__ == "__main__":

@@ -54,8 +54,8 @@ class VVCDataset:
     ORIGINAL_FORMAT: str = "{file}.yuv"
     FILE_FORMAT: str = "yuv"
 
-    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.npy"
-    ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.json"
+    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.yuv"
+    ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.yuv"
 
     def __init__(
         self,
@@ -72,8 +72,6 @@ class VVCDataset:
         self.chunk_width = chunk_width
         self.chunk_height = chunk_height
         self.chunk_border = chunk_border
-        self.chunk_actual_width = chunk_width + chunk_border
-        self.chunk_actual_height = chunk_height + chunk_border
 
         self.data_path = data_path
         self.encoded_path = encoded_path
@@ -98,20 +96,20 @@ class VVCDataset:
 
             metadata = self.load_metadata_for(file)
 
-            horizontal_chunks = math.ceil(metadata.width / self.chunk_actual_width)
-            vertical_chunks = math.ceil(metadata.height / self.chunk_actual_height)
+            horizontal_chunks = math.ceil(metadata.width / self.chunk_width)
+            vertical_chunks = math.ceil(metadata.height / self.chunk_height)
 
             for h_part in range(horizontal_chunks):
                 h_pos = min(
                     (
-                        h_part * self.chunk_actual_width,
+                        h_part * (self.chunk_width - self.chunk_border),
                         metadata.width - self.chunk_width,
                     )
                 )
                 for v_part in range(vertical_chunks):
                     v_pos = min(
                         (
-                            v_part * self.chunk_actual_height,
+                            v_part * (self.chunk_height - self.chunk_border),
                             metadata.height - self.chunk_height,
                         )
                     )
@@ -225,9 +223,6 @@ class VVCDataset:
         orig_chunk_name = self.ORIG_CHUNK_NAME.format_map(
             dict(**asdict(chunk.metadata), **asdict(chunk))
         )
-        metadata_name = self.METADATA_NAME.format_map(
-            dict(**asdict(chunk.metadata), **asdict(chunk))
-        )
 
         if not os.path.exists(os.path.join(self.chunk_folder, chunk_name)):
             fname = os.path.join(self.chunk_folder, chunk_name)
@@ -240,7 +235,7 @@ class VVCDataset:
                 os.rename(old_filename, fname)
             else:
                 with open(fname, "wb") as f:
-                    np.save(f, frame_part)
+                    f.write(frame_part.tobytes())
 
         if not os.path.exists(os.path.join(self.orig_chunk_folder, orig_chunk_name)):
             fname = os.path.join(self.orig_chunk_folder, orig_chunk_name)
@@ -255,7 +250,7 @@ class VVCDataset:
                 os.rename(old_filename, fname)
             else:
                 with open(fname, "wb") as f:
-                    np.save(f, orig_frame_part)
+                    f.write(orig_frame_part.tobytes())
 
 
 if __name__ == "__main__":
