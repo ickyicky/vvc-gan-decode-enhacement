@@ -34,12 +34,9 @@ class Chunk:
     frame: int
 
 
-class VVCDataset:
+class Splitter:
     """
-    Custom DataSet loader
-
-    It handles extracting features from each frame
-    decoding YUV files etc, pretty time consuming tasks
+    Splits videos into chunks for easy processing
     """
 
     INFO_HEIGHT_REGEX: str = re.compile(r"^\s*Height\s*:\s*(\d+)\s*$")
@@ -75,19 +72,14 @@ class VVCDataset:
 
         self.data_path = data_path
         self.encoded_path = encoded_path
-        self.chunks = self.load_chunks()
 
         self.chunk_folder = chunk_folder
         self.orig_chunk_folder = orig_chunk_folder
 
-    def load_chunks(self) -> List[Chunk]:
+    def split_chunks(self) -> None:
         """
-        Load list of avalible chunks.
-
-        Chunk describes chunk of frame of desired size
-        of each avalible video
+        splits chunks :)
         """
-        chunks = []
         files = os.listdir(self.encoded_path)
 
         for file in tqdm(files):
@@ -99,28 +91,29 @@ class VVCDataset:
             horizontal_chunks = math.ceil(metadata.width / self.chunk_width)
             vertical_chunks = math.ceil(metadata.height / self.chunk_height)
 
-            for h_part in range(horizontal_chunks):
-                h_pos = min(
-                    (
-                        h_part * (self.chunk_width - self.chunk_border),
-                        metadata.width - self.chunk_width,
-                    )
-                )
-                for v_part in range(vertical_chunks):
-                    v_pos = min(
+            video_chunks = []
+
+            for frame in range(metadata.frames):
+                for h_part in range(horizontal_chunks):
+                    h_pos = min(
                         (
-                            v_part * (self.chunk_height - self.chunk_border),
-                            metadata.height - self.chunk_height,
+                            h_part * (self.chunk_width - self.chunk_border),
+                            metadata.width - self.chunk_width,
                         )
                     )
-                    for frame in range(metadata.frames):
-                        chunks.append(
-                            Chunk(
-                                metadata=metadata, frame=frame, position=(v_pos, h_pos)
+                    for v_part in range(vertical_chunks):
+                        v_pos = min(
+                            (
+                                v_part * (self.chunk_height - self.chunk_border),
+                                metadata.height - self.chunk_height,
                             )
                         )
+                        chunk = Chunk(
+                            metadata=metadata, frame=frame, position=(v_pos, h_pos)
+                        )
+                        video_chunks.append(chunk)
 
-        return chunks
+            self.save_chunks(video_chunks)
 
     def load_metadata_for(self, file: str) -> Metadata:
         """
@@ -155,112 +148,82 @@ class VVCDataset:
             sao=match_group["sao"],
         )
 
-    def load_frame_chunk(
-        self, file_path: str, chunk: Chunk, bit10: bool = False
-    ) -> Any:
+    def save_chunks(self, chunks: List[Chunk]) -> None:
         """
-        Loads chunk of frame as 2d np array
+        Splits chunks
         """
-        nh = chunk.metadata.height * 3 // 2
-        frame_size = chunk.metadata.width * nh
+        metadata = chunks[0].metadata
+        nh = metadata.height * 3 // 2
+        frame_size = metadata.width * nh
+
+        orig_file_path = os.path.join(
+            self.data_path, self.ORIGINAL_FORMAT.format_map(asdict(metadata))
+        )
+        file_path = os.path.join(
+            self.encoded_path, self.DECODED_FORMAT.format_map(asdict(metadata))
+        )
 
         with open(file_path, "rb") as f:
-            if bit10:
-                f.seek(chunk.frame * frame_size * 2)
-                frame = np.frombuffer(f.read(frame_size * 2), dtype=np.uint16)
-                frame = np.round(frame / 4).astype(np.uint8)
-            else:
-                f.seek(chunk.frame * frame_size)
-                frame = np.frombuffer(f.read(frame_size), dtype=np.uint8)
+            with open(orig_file_path, "rb") as orig_f:
+                for frame_num in range(chunk.metadata.frames):
+                    f.seek(chunk.frame * frame_size * 2)
+                    frame = np.frombuffer(f.read(frame_size * 2), dtype=np.uint16)
+                    frame = np.round(frame / 4).astype(np.uint8)
 
-        frame = frame.copy()
-        frame.resize((nh, chunk.metadata.width))
-        frame = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2YUV)
+                    orig_f.seek(chunk.frame * frame_size)
+                    orig_frame = np.frombuffer(orig_f.read(frame_size), dtype=np.uint8)
 
-        start_h = chunk.position[0]
-        start_w = chunk.position[1]
+                    frame = frame.copy()
+                    frame.resize((nh, chunk.metadata.width))
+                    frame = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2YUV)
 
-        chunk_h = self.chunk_height
-        chunk_w = self.chunk_width
+                    orig_frame = orig_frame.copy()
+                    orig_frame.resize((nh, chunk.metadata.width))
+                    orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_YUV2RGB_I420)
+                    orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_RGB2YUV)
 
-        frame_chunk = frame[start_h:, start_w:, :][:chunk_h, :chunk_w, :]
-        frame_chunk = frame_chunk.transpose((2, 0, 1))
-        return frame_chunk
+                    for chunk in (c for c in chunks if c.frame == frame_num):
+                        start_h = chunk.position[0]
+                        start_w = chunk.position[1]
 
-    def load_chunk(self, chunk: Chunk) -> Tuple[Any, Any, Any]:
-        """
-        Loads original chunk
-        """
-        orig_frame_part = self.load_orig_part(chunk)
-        frame_part = self.load_decoded_part(chunk)
-        return (frame_part, orig_frame_part, chunk.metadata)
+                        chunk_h = self.chunk_height
+                        chunk_w = self.chunk_width
 
-    def _load_part(
-        self, chunk: Chunk, path_: str, format_template: str, bit10=False
-    ) -> Any:
-        path = os.path.join(path_, format_template.format_map(asdict(chunk.metadata)))
-        part = self.load_frame_chunk(path, chunk, bit10)
-        return part
+                        frame_chunk = frame[start_h:, start_w:, :][
+                            :chunk_h, :chunk_w, :
+                        ]
+                        frame_chunk = frame_chunk.transpose((2, 0, 1))
 
-    def load_orig_part(self, chunk: Chunk) -> Any:
-        return self._load_part(chunk, self.data_path, self.ORIGINAL_FORMAT, False)
+                        orig_frame_chunk = orig_frame[start_h:, start_w:, :][
+                            :chunk_h, :chunk_w, :
+                        ]
+                        orig_frame_chunk = orig_frame_chunk.transpose((2, 0, 1))
 
-    def load_decoded_part(self, chunk: Chunk) -> Any:
-        return self._load_part(chunk, self.encoded_path, self.DECODED_FORMAT, True)
+                        chunk_name = self.CHUNK_NAME.format_map(
+                            dict(**asdict(chunk.metadata), **asdict(chunk))
+                        )
+                        orig_chunk_name = self.ORIG_CHUNK_NAME.format_map(
+                            dict(**asdict(chunk.metadata), **asdict(chunk))
+                        )
 
-    def __len__(self) -> int:
-        return len(self.chunks)
+                        fname = os.path.join(self.chunk_folder, chunk_name)
+                        folder = os.path.dirname(fname)
+                        Path(folder).mkdir(parents=True, exist_ok=True)
 
-    def __getitem__(self, idx: int) -> Tuple[Any, Any]:
-        chunk = self.chunks[idx]
-        return self.load_chunk(chunk)
+                        with open(fname, "wb") as f:
+                            f.write(frame_chunk.tobytes())
 
-    def save_chunk(self, chunk: Chunk) -> None:
-        chunk_name = self.CHUNK_NAME.format_map(
-            dict(**asdict(chunk.metadata), **asdict(chunk))
-        )
-        orig_chunk_name = self.ORIG_CHUNK_NAME.format_map(
-            dict(**asdict(chunk.metadata), **asdict(chunk))
-        )
+                        fname = os.path.join(self.orig_chunk_folder, orig_chunk_name)
+                        folder = os.path.dirname(fname)
+                        Path(folder).mkdir(parents=True, exist_ok=True)
 
-        if not os.path.exists(os.path.join(self.chunk_folder, chunk_name)):
-            fname = os.path.join(self.chunk_folder, chunk_name)
-            frame_part = self.load_decoded_part(chunk)
-            folder = os.path.dirname(fname)
-            Path(folder).mkdir(parents=True, exist_ok=True)
-
-            old_filename = os.path.join(self.chunk_folder, chunk_name.replace("/", "_"))
-            if os.path.exists(old_filename):
-                os.rename(old_filename, fname)
-            else:
-                with open(fname, "wb") as f:
-                    f.write(frame_part.tobytes())
-
-        if not os.path.exists(os.path.join(self.orig_chunk_folder, orig_chunk_name)):
-            fname = os.path.join(self.orig_chunk_folder, orig_chunk_name)
-            orig_frame_part = self.load_orig_part(chunk)
-            folder = os.path.dirname(fname)
-            Path(folder).mkdir(parents=True, exist_ok=True)
-
-            old_filename = os.path.join(
-                self.orig_chunk_folder, orig_chunk_name.replace("/", "_")
-            )
-            if os.path.exists(old_filename):
-                os.rename(old_filename, fname)
-            else:
-                with open(fname, "wb") as f:
-                    f.write(orig_frame_part.tobytes())
+                        with open(fname, "wb") as f:
+                            f.write(orig_frame_chunk.tobytes())
 
 
 if __name__ == "__main__":
     import sys
-    from pprint import pprint
 
-    d = VVCDataset(*sys.argv[1:])
-    pprint(d)
-    len_d = len(d)
-    pprint(len_d)
-
-    for chunk in tqdm(d.chunks):
-        d.save_chunk(chunk)
+    s = Splitter(*sys.argv[1:])
+    s.split_chunks()
