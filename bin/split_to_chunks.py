@@ -164,62 +164,66 @@ class Splitter:
         )
 
         with open(file_path, "rb") as f:
-            with open(orig_file_path, "rb") as orig_f:
-                for frame_num in range(chunk.metadata.frames):
-                    f.seek(chunk.frame * frame_size * 2)
-                    frame = np.frombuffer(f.read(frame_size * 2), dtype=np.uint16)
-                    frame = np.round(frame / 4).astype(np.uint8)
+            buff = f.read()
 
-                    orig_f.seek(chunk.frame * frame_size)
-                    orig_frame = np.frombuffer(orig_f.read(frame_size), dtype=np.uint8)
+        with open(orig_file_path, "rb") as orig_f:
+            orig_buff = orig_f.read()
 
-                    frame = frame.copy()
-                    frame.resize((nh, chunk.metadata.width))
-                    frame = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
-                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2YUV)
+        for frame_num in tqdm(range(metadata.frames)):
+            orig_frame = np.frombuffer(
+                orig_buff[frame_num * frame_size * 2 : frame_size * 2], dtype=np.uint16
+            )
+            orig_frame = np.round(orig_frame / 4).astype(np.uint8)
 
-                    orig_frame = orig_frame.copy()
-                    orig_frame.resize((nh, chunk.metadata.width))
-                    orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_YUV2RGB_I420)
-                    orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_RGB2YUV)
+            frame = np.frombuffer(
+                buff[frame_num * frame_size : frame_size], dtype=np.uint8
+            )
 
-                    for chunk in (c for c in chunks if c.frame == frame_num):
-                        start_h = chunk.position[0]
-                        start_w = chunk.position[1]
+            frame = frame.copy()
+            frame.resize((nh, metadata.width))
+            frame = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2YUV)
 
-                        chunk_h = self.chunk_height
-                        chunk_w = self.chunk_width
+            orig_frame = orig_frame.copy()
+            orig_frame.resize((nh, metadata.width))
+            orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_YUV2RGB_I420)
+            orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_RGB2YUV)
 
-                        frame_chunk = frame[start_h:, start_w:, :][
-                            :chunk_h, :chunk_w, :
-                        ]
-                        frame_chunk = frame_chunk.transpose((2, 0, 1))
+            for chunk in (c for c in chunks if c.frame == frame_num):
+                start_h = chunk.position[0]
+                start_w = chunk.position[1]
 
-                        orig_frame_chunk = orig_frame[start_h:, start_w:, :][
-                            :chunk_h, :chunk_w, :
-                        ]
-                        orig_frame_chunk = orig_frame_chunk.transpose((2, 0, 1))
+                chunk_h = self.chunk_height
+                chunk_w = self.chunk_width
 
-                        chunk_name = self.CHUNK_NAME.format_map(
-                            dict(**asdict(chunk.metadata), **asdict(chunk))
-                        )
-                        orig_chunk_name = self.ORIG_CHUNK_NAME.format_map(
-                            dict(**asdict(chunk.metadata), **asdict(chunk))
-                        )
+                frame_chunk = frame[start_h:, start_w:, :][:chunk_h, :chunk_w, :]
+                frame_chunk = frame_chunk.transpose((2, 0, 1))
 
-                        fname = os.path.join(self.chunk_folder, chunk_name)
-                        folder = os.path.dirname(fname)
-                        Path(folder).mkdir(parents=True, exist_ok=True)
+                orig_frame_chunk = orig_frame[start_h:, start_w:, :][
+                    :chunk_h, :chunk_w, :
+                ]
+                orig_frame_chunk = orig_frame_chunk.transpose((2, 0, 1))
 
-                        with open(fname, "wb") as f:
-                            f.write(frame_chunk.tobytes())
+                chunk_name = self.CHUNK_NAME.format_map(
+                    dict(**asdict(chunk.metadata), **asdict(chunk))
+                )
+                orig_chunk_name = self.ORIG_CHUNK_NAME.format_map(
+                    dict(**asdict(chunk.metadata), **asdict(chunk))
+                )
 
-                        fname = os.path.join(self.orig_chunk_folder, orig_chunk_name)
-                        folder = os.path.dirname(fname)
-                        Path(folder).mkdir(parents=True, exist_ok=True)
+                fname = os.path.join(self.chunk_folder, chunk_name)
+                folder = os.path.dirname(fname)
+                Path(folder).mkdir(parents=True, exist_ok=True)
 
-                        with open(fname, "wb") as f:
-                            f.write(orig_frame_chunk.tobytes())
+                with open(fname, "wb") as f:
+                    f.write(frame_chunk.tobytes())
+
+                fname = os.path.join(self.orig_chunk_folder, orig_chunk_name)
+                folder = os.path.dirname(fname)
+                Path(folder).mkdir(parents=True, exist_ok=True)
+
+                with open(fname, "wb") as f:
+                    f.write(orig_frame_chunk.tobytes())
 
 
 if __name__ == "__main__":
