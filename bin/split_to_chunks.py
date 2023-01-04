@@ -196,14 +196,6 @@ class Splitter:
                 chunk_h = self.chunk_height
                 chunk_w = self.chunk_width
 
-                frame_chunk = frame[start_h:, start_w:, :][:chunk_h, :chunk_w, :]
-                frame_chunk = frame_chunk.transpose((2, 0, 1))
-
-                orig_frame_chunk = orig_frame[start_h:, start_w:, :][
-                    :chunk_h, :chunk_w, :
-                ]
-                orig_frame_chunk = orig_frame_chunk.transpose((2, 0, 1))
-
                 chunk_name = self.CHUNK_NAME.format_map(
                     dict(**asdict(chunk.metadata), **asdict(chunk))
                 )
@@ -215,15 +207,25 @@ class Splitter:
                 folder = os.path.dirname(fname)
                 Path(folder).mkdir(parents=True, exist_ok=True)
 
-                with open(fname, "wb") as f:
-                    f.write(frame_chunk.tobytes())
+                if not os.path.exists(fname):
+                    frame_chunk = frame[start_h:, start_w:, :][:chunk_h, :chunk_w, :]
+                    frame_chunk = frame_chunk.transpose((2, 0, 1))
+
+                    with open(fname, "wb") as f:
+                        f.write(frame_chunk.tobytes())
 
                 fname = os.path.join(self.orig_chunk_folder, orig_chunk_name)
                 folder = os.path.dirname(fname)
                 Path(folder).mkdir(parents=True, exist_ok=True)
 
-                with open(fname, "wb") as f:
-                    f.write(orig_frame_chunk.tobytes())
+                if not os.path.exists(fname):
+                    orig_frame_chunk = orig_frame[start_h:, start_w:, :][
+                        :chunk_h, :chunk_w, :
+                    ]
+                    orig_frame_chunk = orig_frame_chunk.transpose((2, 0, 1))
+
+                    with open(fname, "wb") as f:
+                        f.write(orig_frame_chunk.tobytes())
 
 
 if __name__ == "__main__":
