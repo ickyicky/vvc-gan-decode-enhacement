@@ -1,4 +1,5 @@
 import torch
+import wandb
 import torchvision
 import pytorch_lightning as pl
 import torch.nn.functional as F
@@ -10,9 +11,10 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 0.0002,
-        discriminator_lr: float = 0.0001,
+        enhancer_lr: float = 0.0005,
+        discriminator_lr: float = 0.00005,
         betas: Tuple[float, float] = (0.5, 0.999),
+        num_samples: int = 6,
     ):
         super().__init__()
 
@@ -23,6 +25,8 @@ class GANModule(pl.LightningModule):
         self.discriminator_lr = discriminator_lr
 
         self.betas = betas
+
+        self.num_samples = num_samples
 
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
@@ -39,19 +43,30 @@ class GANModule(pl.LightningModule):
             # ENHANCE!
             self.enhanced = self(chunks, metadata)
 
-            # log ENHANCED!
-            sample = self.enhanced[:6]
-            grid = torchvision.utils.make_grid(sample)
-            self.logger.experiment.add_image("enhanced", grid, 0)
-
             # ground truth result (ie: all fake)
             # put on GPU because we created this tensor inside training_loop
             valid = torch.ones(chunks.size(0), 1)
             valid = valid.type_as(chunks)
 
             # adversarial loss is binary cross-entropy
-            g_loss = self.adversarial_loss(self.discriminator(self.enhanced), valid)
+            preds = self.discriminator(self.enhanced)
+            g_loss = self.adversarial_loss(preds, valid)
             self.log("g_loss", g_loss, prog_bar=True)
+            if batch_idx % 20 == 0:
+                self.logger.experiment.log(
+                    {
+                        "examples": [
+                            wandb.Image(
+                                x,
+                                caption=f"Pred:{pred}",
+                            )
+                            for x, pred in zip(
+                                self.enhanced[: self.num_samples],
+                                preds[: self.num_samples],
+                            )
+                        ],
+                    }
+                )
             return g_loss
 
         # train discriminator
@@ -91,9 +106,3 @@ class GANModule(pl.LightningModule):
         ]
 
         return [opt_g, opt_d], lr_schedulers
-
-    def on_validation_epoch_end(self):
-        # log sampled images
-        sample_imgs = self.enhanced
-        grid = torchvision.utils.make_grid(sample_imgs)
-        self.logger.experiment.add_image("enhanced", grid, self.current_epoch)

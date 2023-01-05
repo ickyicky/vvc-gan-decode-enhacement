@@ -1,14 +1,9 @@
 import torch
 import os
-import re
-import math
 import numpy as np
-import cv2
-from tqdm import tqdm
 from typing import List, Tuple, Any, Dict, Optional
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
-from random import choice
 from glob import glob
 
 
@@ -63,37 +58,32 @@ class VVCDataset(torch.utils.data.Dataset):
         self.chunk_transform = chunk_transform
         self.metadata_transform = metadata_transform
 
-        self.chunks = self.load_chunks()
+        self.chunk_files = glob(self.CHUNK_GLOB.format(folder=self.chunk_folder))
 
-    def load_chunks(self) -> List[Chunk]:
+    def get_chunk(self, fname: str) -> List[Chunk]:
         """load_chunks.
         Loads list of available chunks
 
         :rtype: List[Chunk]
         """
-        chunks = []
+        _, fname, profiles, position = fname.split("/")
+        profile, qp, alf, db, sao = profiles.split("_")
+        frame, pos0, pos1 = position.split(".")[0].split("_")
 
-        for fname in tqdm(glob(self.CHUNK_GLOB.format(folder=self.chunk_folder))):
-            _, fname, profiles, position = fname.split("/")
-            profile, qp, alf, db, sao = profiles.split("_")
-            frame, pos0, pos1 = position.split(".")[0].split("_")
-
-            metadata = Metadata(
-                file=fname,
-                profile=profile,
-                qp=int(qp[2:]),
-                alf=bool(int(alf[3:])),
-                sao=bool(int(sao[3:])),
-                db=bool(int(db[2:])),
-            )
-            chunk = Chunk(
-                position=(int(pos0), int(pos1)),
-                metadata=metadata,
-                frame=int(frame),
-            )
-            chunks.append(chunk)
-
-        return chunks
+        metadata = Metadata(
+            file=fname,
+            profile=profile,
+            qp=int(qp[2:]),
+            alf=bool(int(alf[3:])),
+            sao=bool(int(sao[3:])),
+            db=bool(int(db[2:])),
+        )
+        chunk = Chunk(
+            position=(int(pos0), int(pos1)),
+            metadata=metadata,
+            frame=int(frame),
+        )
+        return chunk
 
     def load_chunk(self, chunk: Chunk) -> Tuple[Any, Any, Any]:
         chunk_path = self.CHUNK_NAME.format_map(
@@ -130,10 +120,10 @@ class VVCDataset(torch.utils.data.Dataset):
         )
 
     def __len__(self) -> int:
-        return len(self.chunks)
+        return len(self.chunk_files)
 
     def __getitem__(self, idx: int) -> Tuple[Any, Any, Any]:
-        chunk = self.chunks[idx]
+        chunk = self.get_chunk(self.chunk_files[idx])
         chunk, orig_chunk, metadata = self.load_chunk(chunk)
         return (
             self.chunk_transform(chunk),

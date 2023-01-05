@@ -47,7 +47,9 @@ if __name__ == "__main__":
         enhancer,
         discriminator,
     )
-    wandb_logger = WandbLogger(project='vvc-enhancer',)
+    wandb_logger = WandbLogger(
+        project="vvc-enhancer",
+    )
 
     trainer = Trainer(
         accelerator="auto",
