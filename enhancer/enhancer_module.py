@@ -22,7 +22,9 @@ class EnhancerModule(pl.LightningModule):
         self.betas = betas
 
         self.num_samples = num_samples
-        self.ms_ssim = MultiScaleStructuralSimilarityIndexMeasure(kernel_size=7)
+        self.ms_ssim = MultiScaleStructuralSimilarityIndexMeasure(
+            kernel_size=7, data_range=1.0, normalize="simple"
+        )
 
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
@@ -34,7 +36,7 @@ class EnhancerModule(pl.LightningModule):
         enhanced = self(chunks, metadata)
 
         # adversarial loss is binary cross-entropy
-        g_loss = self.ms_ssim(enhanced, orig_chunks, data_range=1.0)
+        g_loss = self.ms_ssim(enhanced, orig_chunks)
         self.log("loss", g_loss, prog_bar=True)
         if batch_idx % 20 == 0:
             self.logger.experiment.log(
