@@ -88,7 +88,7 @@ class MetadataEncoder(nn.Module):
         return self.model(x)
 
 
-class DenseGenerator(nn.Module):
+class Enhancer(nn.Module):
     """
     DenseNet-based generator that consists of DenseBlocks
     """
@@ -197,7 +197,7 @@ class DenseGenerator(nn.Module):
 if __name__ == "__main__":
     x = torch.rand((1, 3, 128, 128))
     m = torch.rand((1, 5, 1, 1))
-    g = DenseGenerator()
+    g = Enhancer()
     print(g(x, m).shape)
     from torchsummary import summary
 
