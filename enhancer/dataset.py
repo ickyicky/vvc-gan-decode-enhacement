@@ -94,19 +94,21 @@ class VVCDataset(torch.utils.data.Dataset):
         chunk_path = self.CHUNK_NAME.format_map(
             dict(**asdict(chunk), **asdict(chunk.metadata))
         )
+        chunk_path = os.path.join(self.chunk_folder, chunk_path)
         orig_chunk_path = self.ORIG_CHUNK_NAME.format_map(
             dict(**asdict(chunk), **asdict(chunk.metadata))
         )
+        orig_chunk_path = os.path.join(self.orig_chunk_folder, orig_chunk_path)
 
         with open(chunk_path, "rb") as f:
             _chunk = np.frombuffer(f.read())
-            _chunk.resize((self.chunk_height, self.chunk_width))
+            _chunk = np.resize(_chunk, (self.chunk_height, self.chunk_width))
 
         with open(orig_chunk_path, "rb") as f:
             orig_chunk = np.frombuffer(f.read())
-            orig_chunk.resize((self.chunk_height, self.chunk_width))
+            orig_chunk = np.resize(orig_chunk, (self.chunk_height, self.chunk_width))
 
-        return (_chunk, orig_chunk, chunk.metadata)
+        return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 
     def _metadata_to_np(self, metadata: Metadata) -> Any:
         """
@@ -122,28 +124,12 @@ class VVCDataset(torch.utils.data.Dataset):
             )
         )
 
-    def _to_torch(
-        self, _input: Any, original: Any, metadata: Metadata
-    ) -> Dict[Any, Any]:
-        """
-        Representation for torch
-        """
-        return (
-            torch.as_tensor(_input.copy()).float().contiguous(),
-            torch.as_tensor(original.copy()).float().contiguous(),
-            torch.as_tensor(self._metadata_to_np(metadata))
-            .float()
-            .unsqueeze(-1)
-            .unsqueeze(-1)
-            .contiguous(),
-        )
-
     def __len__(self) -> int:
         return len(self.chunks)
 
     def __getitem__(self, idx: int) -> Tuple[Any, Any]:
         chunk = self.chunks[idx]
-        return self._to_torch(*self.load_chunk(chunk))
+        return self.load_chunk(chunk)
 
 
 if __name__ == "__main__":
