@@ -11,8 +11,8 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 0.0005,
-        discriminator_lr: float = 0.00005,
+        enhancer_lr: float = 0.005,
+        discriminator_lr: float = 0.00001,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
     ):
@@ -41,7 +41,7 @@ class GANModule(pl.LightningModule):
         if optimizer_idx == 0:
 
             # ENHANCE!
-            self.enhanced = self(chunks, metadata)
+            enhanced = self(chunks, metadata)
 
             # ground truth result (ie: all fake)
             # put on GPU because we created this tensor inside training_loop
@@ -49,7 +49,7 @@ class GANModule(pl.LightningModule):
             valid = valid.type_as(chunks)
 
             # adversarial loss is binary cross-entropy
-            preds = self.discriminator(self.enhanced)
+            preds = self.discriminator(enhanced)
             g_loss = self.adversarial_loss(preds, valid)
             self.log("g_loss", g_loss, prog_bar=True)
             if batch_idx % 20 == 0:
@@ -61,9 +61,16 @@ class GANModule(pl.LightningModule):
                                 caption=f"Pred:{pred}",
                             )
                             for x, pred in zip(
-                                self.enhanced[: self.num_samples],
-                                preds[: self.num_samples],
+                                enhanced[: self.num_samples],
+                                preds.cpu()[: self.num_samples],
                             )
+                        ],
+                        "reference": [
+                            wandb.Image(
+                                x,
+                                caption="reference image",
+                            )
+                            for x in orig_chunks[: self.num_samples]
                         ],
                     }
                 )
