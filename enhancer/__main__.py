@@ -5,6 +5,7 @@ from .gan_module import GANModule
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
+from pytorch_lightning.loggers import WandbLogger
 import torch
 
 
@@ -46,11 +47,13 @@ if __name__ == "__main__":
         enhancer,
         discriminator,
     )
+    wandb_logger = WandbLogger(project='vvc-enhancer',)
 
     trainer = Trainer(
         accelerator="auto",
         devices=1 if torch.cuda.is_available() else None,
         max_epochs=args.epochs,
         callbacks=[TQDMProgressBar(refresh_rate=20)],
+        logger=wandb_logger,
     )
     trainer.fit(module, data_module)
