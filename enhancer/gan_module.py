@@ -58,7 +58,7 @@ class GANModule(pl.LightningModule):
                         "examples": [
                             wandb.Image(
                                 x,
-                                caption=f"Pred:{pred}",
+                                caption=f"Pred: {pred.item()}",
                             )
                             for x, pred in zip(
                                 enhanced[: self.num_samples],
@@ -68,9 +68,9 @@ class GANModule(pl.LightningModule):
                         "reference": [
                             wandb.Image(
                                 x,
-                                caption="reference image",
+                                caption="reference image {i}",
                             )
-                            for x in orig_chunks[: self.num_samples]
+                            for i, x in enumerate(orig_chunks[: self.num_samples])
                         ],
                     }
                 )

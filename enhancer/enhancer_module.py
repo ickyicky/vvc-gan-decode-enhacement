@@ -44,16 +44,16 @@ class EnhancerModule(pl.LightningModule):
                     "examples": [
                         wandb.Image(
                             x,
-                            caption="enhanced image",
+                            caption="enhanced image {i}",
                         )
-                        for x in enhanced[: self.num_samples]
+                        for i, x in enumerate(enhanced[: self.num_samples])
                     ],
                     "reference": [
                         wandb.Image(
                             x,
-                            caption="reference image",
+                            caption="reference image {i}",
                         )
-                        for x in orig_chunks[: self.num_samples]
+                        for i, x in enumerate(orig_chunks[: self.num_samples])
                     ],
                 }
             )
