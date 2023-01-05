@@ -131,4 +131,5 @@ if __name__ == "__main__":
     train = d.train_dataloader()
     for x in train:
         print(x)
+        print(x[2].shape)
         break
