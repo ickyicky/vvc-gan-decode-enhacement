@@ -1,5 +1,6 @@
 # package data
 data
+lightning_logs
 encoded
 decoded
 tasks
