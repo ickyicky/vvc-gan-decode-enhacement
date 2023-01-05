@@ -1,5 +1,6 @@
 import torch
 import os
+import cv2
 import numpy as np
 from typing import List, Tuple, Any, Dict, Optional
 from dataclasses import dataclass, asdict
@@ -98,10 +99,14 @@ class VVCDataset(torch.utils.data.Dataset):
         with open(chunk_path, "rb") as f:
             _chunk = np.frombuffer(f.read(), dtype=np.uint8)
             _chunk = np.resize(_chunk, (3, self.chunk_height, self.chunk_width))
+            _chunk = _chunk.transpose((1, 2, 0))
+            _chunk = cv2.cvtColor(_chunk, cv2.COLOR_YUV2RGB)
 
         with open(orig_chunk_path, "rb") as f:
             orig_chunk = np.frombuffer(f.read(), dtype=np.uint8)
             orig_chunk = np.resize(orig_chunk, (3, self.chunk_height, self.chunk_width))
+            orig_chunk = orig_chunk.transpose((1, 2, 0))
+            orig_chunk = cv2.cvtColor(orig_chunk, cv2.COLOR_YUV2RGB)
 
         return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 

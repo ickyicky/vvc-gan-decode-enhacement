@@ -107,12 +107,11 @@ class VVCDataModule(pl.LightningDataModule):
 
     def chunk_transform(self):
         """chunk_transform."""
-
-        def transform(chunk):
-            result = torch.as_tensor(chunk).float()
-            return result
-
-        return transform
+        return transforms.Compose(
+            [
+                transforms.ToTensor(),
+            ]
+        )
 
     def metadata_transform(self):
         """metadata_transform."""
