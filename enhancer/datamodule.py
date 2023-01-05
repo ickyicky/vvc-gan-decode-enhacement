@@ -49,11 +49,16 @@ class VVCDataModule(pl.LightningDataModule):
         self.val_percentage = val_percentage
         self.test_percentage = test_percentage
 
+        self.dataset_val = None
+        self.dataset_test = None
+        self.dataset_train = None
+
     def setup(self, stage=None):
         """setup.
 
         :param stage:
         """
+        print("called")
         dataset = VVCDataset(
             chunk_folder=self.chunk_folder,
             orig_chunk_folder=self.orig_chunk_folder,
@@ -111,17 +116,19 @@ class VVCDataModule(pl.LightningDataModule):
 
     def metadata_transform(self):
         """metadata_transform."""
-        return transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        )
+
+        def transform(metadata):
+            return torch.as_tensor(metadata).float().view(len(metadata), 1, 1)
+
+        return transform
 
 
 if __name__ == "__main__":
     import sys
 
     d = VVCDataModule(*sys.argv[1:])
-    import ipdb
-
-    ipdb.set_trace()
+    d.setup()
+    train = d.train_dataloader()
+    for x in train:
+        print(x)
+        break
