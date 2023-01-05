@@ -3,7 +3,7 @@
 
 # Script for preparing_daataset
 
-[ -d "data" ] || { echo "Make sure to fetch data into data folder first";  exit 1; }
+[ -d data ] || { echo "Make sure to fetch data into data folder first";  exit 1; }
 
 for FILE in $(ls data/*.mkv); do
 	DESTINATION="$(echo $FILE | cut -d "." -f 1).yuv"

@@ -39,7 +39,7 @@ class VVCDataset(torch.utils.data.Dataset):
     decoding YUV files etc, pretty time consuming tasks
     """
 
-    CHUNK_GLOB = "{folder}/*/*.yuv"
+    CHUNK_GLOB = "{folder}/*/*/*.yuv"
     CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.yuv"
     ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.yuv"
 
@@ -69,7 +69,7 @@ class VVCDataset(torch.utils.data.Dataset):
         chunks = []
 
         for fname in tqdm(glob(self.CHUNK_GLOB.format(folder=self.chunk_folder))):
-            fname, profiles, position = fname.split("/")
+            _, fname, profiles, position = fname.split("/")
             profile, qp, alf, db, sao = profiles.split("_")
             frame, pos0, pos1 = position.split(".")[0].split("_")
 
