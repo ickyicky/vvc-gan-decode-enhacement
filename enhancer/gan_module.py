@@ -68,7 +68,7 @@ class GANModule(pl.LightningModule):
                         "reference": [
                             wandb.Image(
                                 x,
-                                caption="reference image {i}",
+                                caption=f"reference image {i}",
                             )
                             for i, x in enumerate(orig_chunks[: self.num_samples])
                         ],
