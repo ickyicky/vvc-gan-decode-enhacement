@@ -47,6 +47,8 @@ class VVCDataset(torch.utils.data.Dataset):
         self,
         chunk_folder: str,
         orig_chunk_folder: str,
+        chunk_transform: Any,
+        metadata_transform: Any,
         chunk_height: int = 128,
         chunk_width: int = 128,
     ) -> None:
@@ -57,6 +59,9 @@ class VVCDataset(torch.utils.data.Dataset):
 
         self.chunk_height = chunk_height
         self.chunk_width = chunk_width
+
+        self.chunk_transform = chunk_transform
+        self.metadata_transform = metadata_transform
 
         self.chunks = self.load_chunks()
 
@@ -127,9 +132,14 @@ class VVCDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.chunks)
 
-    def __getitem__(self, idx: int) -> Tuple[Any, Any]:
+    def __getitem__(self, idx: int) -> Tuple[Any, Any, Any]:
         chunk = self.chunks[idx]
-        return self.load_chunk(chunk)
+        chunk, orig_chunk, metadata = self.load_chunk(chunk)
+        return (
+            self.chunk_transform(chunk),
+            self.chunk_transform(orig_chunk),
+            self.metadata_transform(metadata),
+        )
 
 
 if __name__ == "__main__":
