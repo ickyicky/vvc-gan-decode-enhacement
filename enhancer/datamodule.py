@@ -58,7 +58,6 @@ class VVCDataModule(pl.LightningDataModule):
 
         :param stage:
         """
-        print("called")
         dataset = VVCDataset(
             chunk_folder=self.chunk_folder,
             orig_chunk_folder=self.orig_chunk_folder,
@@ -108,11 +107,12 @@ class VVCDataModule(pl.LightningDataModule):
 
     def chunk_transform(self):
         """chunk_transform."""
-        return transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        )
+
+        def transform(chunk):
+            result = torch.as_tensor(chunk).float()
+            return result
+
+        return transform
 
     def metadata_transform(self):
         """metadata_transform."""

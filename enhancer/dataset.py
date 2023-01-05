@@ -106,12 +106,12 @@ class VVCDataset(torch.utils.data.Dataset):
         orig_chunk_path = os.path.join(self.orig_chunk_folder, orig_chunk_path)
 
         with open(chunk_path, "rb") as f:
-            _chunk = np.frombuffer(f.read())
-            _chunk = np.resize(_chunk, (self.chunk_height, self.chunk_width))
+            _chunk = np.frombuffer(f.read(), dtype=np.uint8)
+            _chunk = np.resize(_chunk, (3, self.chunk_height, self.chunk_width))
 
         with open(orig_chunk_path, "rb") as f:
-            orig_chunk = np.frombuffer(f.read())
-            orig_chunk = np.resize(orig_chunk, (self.chunk_height, self.chunk_width))
+            orig_chunk = np.frombuffer(f.read(), dtype=np.uint8)
+            orig_chunk = np.resize(orig_chunk, (3, self.chunk_height, self.chunk_width))
 
         return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 
@@ -122,7 +122,7 @@ class VVCDataset(torch.utils.data.Dataset):
         return np.array(
             (
                 0 if metadata.profile == "RA" else 1,
-                metadata.qp,
+                metadata.qp / 64,
                 metadata.alf,
                 metadata.sao,
                 metadata.db,
