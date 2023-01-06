@@ -51,8 +51,8 @@ class Splitter:
     ORIGINAL_FORMAT: str = "{file}.yuv"
     FILE_FORMAT: str = "yuv"
 
-    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.yuv"
-    ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.yuv"
+    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.png"
+    ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.png"
 
     def __init__(
         self,
@@ -154,7 +154,6 @@ class Splitter:
         """
         metadata = chunks[0].metadata
         nh = metadata.height * 3 // 2
-        frame_size = metadata.width * nh
 
         orig_file_path = os.path.join(
             self.data_path, self.ORIGINAL_FORMAT.format_map(asdict(metadata))
@@ -164,30 +163,22 @@ class Splitter:
         )
 
         with open(file_path, "rb") as f:
-            buff = f.read()
+            buff = np.frombuffer(f.read(), dtype=np.uint16)
 
-        with open(orig_file_path, "rb") as orig_f:
-            orig_buff = orig_f.read()
+        with open(orig_file_path, "rb") as f:
+            orig_buff = np.frombuffer(f.read(), dtype=np.uint8)
+
+        buff = np.round(buff / 4).astype(np.uint8)
+        buff = np.resize(buff, (metadata.frames, nh, metadata.width))
+
+        orig_buff = np.resize(orig_buff, (metadata.frames, nh, metadata.width))
 
         for frame_num in tqdm(range(metadata.frames)):
-            orig_frame = np.frombuffer(
-                orig_buff[frame_num * frame_size * 2 : frame_size * 2], dtype=np.uint16
-            )
-            orig_frame = np.round(orig_frame / 4).astype(np.uint8)
-
-            frame = np.frombuffer(
-                buff[frame_num * frame_size : frame_size], dtype=np.uint8
-            )
-
-            frame = frame.copy()
-            frame.resize((nh, metadata.width))
+            frame = buff[frame_num]
             frame = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2YUV)
 
-            orig_frame = orig_frame.copy()
-            orig_frame.resize((nh, metadata.width))
+            orig_frame = orig_buff[frame_num]
             orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_YUV2RGB_I420)
-            orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_RGB2YUV)
 
             for chunk in (c for c in chunks if c.frame == frame_num):
                 start_h = chunk.position[0]
@@ -209,7 +200,6 @@ class Splitter:
 
                 if not os.path.exists(fname):
                     frame_chunk = frame[start_h:, start_w:, :][:chunk_h, :chunk_w, :]
-                    frame_chunk = frame_chunk.transpose((2, 0, 1))
 
                     with open(fname, "wb") as f:
                         f.write(frame_chunk.tobytes())
@@ -222,7 +212,6 @@ class Splitter:
                     orig_frame_chunk = orig_frame[start_h:, start_w:, :][
                         :chunk_h, :chunk_w, :
                     ]
-                    orig_frame_chunk = orig_frame_chunk.transpose((2, 0, 1))
 
                     with open(fname, "wb") as f:
                         f.write(orig_frame_chunk.tobytes())

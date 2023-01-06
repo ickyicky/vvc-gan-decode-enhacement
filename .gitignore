@@ -1,4 +1,6 @@
 # package data
+.DS_Store
+test
 data
 lightning_logs
 encoded
