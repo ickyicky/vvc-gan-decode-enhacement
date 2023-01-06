@@ -98,12 +98,12 @@ class Enhancer(nn.Module):
         self,
         nc: int = 3,
         size: int = 128,
-        init_num_features: int = 32,
+        init_num_features: int = 3,
         growth_rate: int = 8,
         bn_size: int = 2,
         drop_rate: float = 0,
         metadata_size: int = 5,
-        metadata_features: int = 1,
+        metadata_features: int = 5,
         up_blocks_config: List[int] = (2, 2),
         down_blocks_config: List[int] = (2, 2),
     ) -> None:
@@ -115,20 +115,12 @@ class Enhancer(nn.Module):
         """
 
         super().__init__()
-        num_features = init_num_features
-        # input block, doesnt resize
-        input_block = nn.Sequential(
-            nn.Conv2d(
-                nc + metadata_features,
-                num_features,
-                kernel_size=2,
-                stride=2,
-                padding=1,
-                bias=False,
-            ),
-            nn.BatchNorm2d(num_features),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, padding=1, stride=1),
+
+        self.encoder = MetadataEncoder(
+            metadata_size=metadata_size,
+            metadata_features=metadata_features,
+            init_num_features=init_num_features,
+            size=size,
         )
 
         # blocks
@@ -137,9 +129,10 @@ class Enhancer(nn.Module):
         blocks_down[-1][1] = None  # no transition at end
         blocks_up = [[n, _TransitionUp] for n in up_blocks_config]
         blocks_up[-1][1] = None  # no transition at end
-        blocks = blocks_down + blocks_up
 
-        for num_layers, transition in blocks:
+        num_features = init_num_features + metadata_features
+
+        for num_layers, transition in blocks_down + blocks_up:
             parts.append(
                 _DenseBlock(
                     num_layers=num_layers,
@@ -160,23 +153,14 @@ class Enhancer(nn.Module):
                 num_features = num_features // 2
 
         # output part
-        output_block = nn.Sequential(
-            nn.ConvTranspose2d(num_features, nc, kernel_size=2, stride=2),
+        self.output_block = nn.Sequential(
+            nn.ConvTranspose2d(
+                num_features + init_num_features, nc, kernel_size=2, stride=2
+            ),
             nn.Tanh(),
         )
 
-        self.model = nn.Sequential(
-            input_block,
-            nn.Sequential(*parts),
-            output_block,
-        )
-
-        self.encoder = MetadataEncoder(
-            metadata_size=metadata_size,
-            metadata_features=metadata_features,
-            init_num_features=init_num_features,
-            size=size,
-        )
+        self.model = nn.Sequential(*parts)
 
         # Official init from torch repo.
         for m in self.modules():
@@ -191,7 +175,9 @@ class Enhancer(nn.Module):
     def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
         encoded = self.encoder(metadata)
         data = torch.cat((input_, encoded), 1)
-        return self.model(data)
+        data = self.model(data)
+        data = torch.cat((input_, data), 1)
+        return self.output_block(data)
 
 
 if __name__ == "__main__":
