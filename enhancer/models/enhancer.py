@@ -154,8 +154,8 @@ class Enhancer(nn.Module):
 
         # output part
         self.output_block = nn.Sequential(
-            nn.ConvTranspose2d(
-                num_features + init_num_features, nc, kernel_size=2, stride=2
+            nn.Conv2d(
+                num_features + init_num_features, nc, kernel_size=3, stride=1, padding=1
             ),
             nn.Tanh(),
         )
