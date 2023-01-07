@@ -65,9 +65,9 @@ class Splitter:
         chunk_folder: str,
         orig_chunk_folder: str,
         done_cache: str,
-        chunk_width: int = 128,
-        chunk_height: int = 128,
-        chunk_border: int = 8,
+        chunk_width: int = 132,
+        chunk_height: int = 132,
+        chunk_border: int = 2,
     ) -> None:
         super().__init__()
 
