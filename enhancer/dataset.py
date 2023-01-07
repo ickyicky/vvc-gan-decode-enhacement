@@ -17,6 +17,8 @@ class Metadata:
     alf: bool
     sao: bool
     db: bool
+    frame: int
+    is_intra: bool
 
 
 @validate_arguments
@@ -24,7 +26,6 @@ class Metadata:
 class Chunk:
     position: Tuple[int, int]
     metadata: Any
-    frame: int
 
 
 class VVCDataset(torch.utils.data.Dataset):
@@ -36,7 +37,7 @@ class VVCDataset(torch.utils.data.Dataset):
     """
 
     CHUNK_GLOB = "{folder}/*/*/*.png"
-    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.png"
+    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}/{position[0]}_{position[1]}.png"
     ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.png"
 
     def __init__(
@@ -67,9 +68,10 @@ class VVCDataset(torch.utils.data.Dataset):
 
         :rtype: List[Chunk]
         """
-        _, fname, profiles, position = fname.split("/")
+        _, fname, profiles, frame, position = fname.split("/")
         profile, qp, alf, db, sao = profiles.split("_")
-        frame, pos0, pos1 = position.split(".")[0].split("_")
+        frame, is_intra = frame.split("_")
+        pos0, pos1 = position.split(".")[0].split("_")
 
         metadata = Metadata(
             file=fname,
@@ -78,11 +80,12 @@ class VVCDataset(torch.utils.data.Dataset):
             alf=bool(int(alf[3:])),
             sao=bool(int(sao[3:])),
             db=bool(int(db[2:])),
+            frame=int(frame),
+            is_intra=bool(is_intra),
         )
         chunk = Chunk(
             position=(int(pos0), int(pos1)),
             metadata=metadata,
-            frame=int(frame),
         )
         return chunk
 
@@ -117,6 +120,7 @@ class VVCDataset(torch.utils.data.Dataset):
                 metadata.alf,
                 metadata.sao,
                 metadata.db,
+                metadata.is_intra,
             )
         )
 

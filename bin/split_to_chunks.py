@@ -32,6 +32,7 @@ class Chunk:
     position: Tuple[int, int]
     metadata: Any
     frame: int
+    is_intra: bool
 
 
 class Splitter:
@@ -48,10 +49,13 @@ class Splitter:
 
     METADATA_FORMAT: str = "{name}.mkv.info"
     DECODED_FORMAT: str = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}.yuv"
+    DECODED_LOG_FORMAT: str = (
+        "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}.yuv.log"
+    )
     ORIGINAL_FORMAT: str = "{file}.yuv"
     FILE_FORMAT: str = "yuv"
 
-    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{position[0]}_{position[1]}.png"
+    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}/{position[0]}_{position[1]}.png"
     ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.png"
 
     def __init__(
@@ -78,6 +82,17 @@ class Splitter:
         self.orig_chunk_folder = orig_chunk_folder
         self.done_cache = done_cache
 
+    def load_intra_frames(self, metadata: Metadata) -> List[int]:
+        file_path = os.path.join(
+            self.encoded_path, self.DECODED_LOG_FORMAT.format_map(asdict(metadata))
+        )
+
+        with open(file_path) as f:
+            lines = f.read().splitlines()
+
+        lines = [l for l in lines if l.startswith("POC")]
+        return {i for i, l in enumerate(lines) if "I-SLICE" in l}
+
     def split_chunks(self) -> None:
         """
         splits chunks :)
@@ -96,6 +111,7 @@ class Splitter:
                     continue
 
                 metadata = self.load_metadata_for(file)
+                intra_frames = self.load_intra_frames(metadata)
 
                 horizontal_chunks = math.ceil(metadata.width / self.chunk_width)
                 vertical_chunks = math.ceil(metadata.height / self.chunk_height)
@@ -118,7 +134,10 @@ class Splitter:
                                 )
                             )
                             chunk = Chunk(
-                                metadata=metadata, frame=frame, position=(v_pos, h_pos)
+                                metadata=metadata,
+                                frame=frame,
+                                position=(v_pos, h_pos),
+                                is_intra=frame in intra_frames,
                             )
                             video_chunks.append(chunk)
 

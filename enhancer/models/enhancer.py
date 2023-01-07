@@ -47,8 +47,8 @@ class MetadataEncoder(nn.Module):
     @validate_arguments
     def __init__(
         self,
-        metadata_size: int = 5,
-        metadata_features: int = 1,
+        metadata_size: int = 6,
+        metadata_features: int = 6,
         size: int = 132,
     ) -> None:
         super().__init__()
@@ -97,8 +97,8 @@ class Enhancer(nn.Module):
         growth_rate: int = 8,
         bn_size: int = 2,
         drop_rate: float = 0,
-        metadata_size: int = 5,
-        metadata_features: int = 5,
+        metadata_size: int = 6,
+        metadata_features: int = 6,
         up_blocks_config: List[int] = (2, 2),
         down_blocks_config: List[int] = (2, 2),
     ) -> None:
@@ -179,5 +179,5 @@ if __name__ == "__main__":
 
     g = Enhancer()
 
-    summary(g.encoder, (5, 1, 1))
-    summary(g, [(3, 132, 132), (5, 1, 1)])
+    summary(g.encoder, (6, 1, 1))
+    summary(g, [(3, 132, 132), (6, 1, 1)])
