@@ -81,7 +81,7 @@ class VVCDataset(torch.utils.data.Dataset):
             sao=bool(int(sao[3:])),
             db=bool(int(db[2:])),
             frame=int(frame),
-            is_intra=bool(is_intra),
+            is_intra=is_intra == "True",
         )
         chunk = Chunk(
             position=(int(pos0), int(pos1)),
