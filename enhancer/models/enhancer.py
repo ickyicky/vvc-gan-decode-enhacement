@@ -49,26 +49,21 @@ class MetadataEncoder(nn.Module):
         self,
         metadata_size: int = 5,
         metadata_features: int = 1,
-        init_num_features: int = 32,
-        size: int = 128,
+        size: int = 132,
     ) -> None:
         super().__init__()
 
-        num_blocks = int(sqrt(size / 8))
-        num_features = init_num_features * (2**num_blocks)
+        num_features = metadata_features
 
         model = [
             EncoderBlock(
-                metadata_size, num_features, kernel_size=4, stride=1, padding=0
+                metadata_size,
+                metadata_features,
+                kernel_size=size // 2,
+                stride=1,
+                padding=0,
             )
         ]
-        for i in range(num_blocks):
-            model.append(
-                EncoderBlock(
-                    num_features, num_features // 2, kernel_size=4, stride=2, padding=1
-                )
-            )
-            num_features = num_features // 2
 
         model.append(
             nn.Sequential(
@@ -97,7 +92,7 @@ class Enhancer(nn.Module):
     def __init__(
         self,
         nc: int = 3,
-        size: int = 128,
+        size: int = 132,
         init_num_features: int = 3,
         growth_rate: int = 8,
         bn_size: int = 2,
@@ -119,7 +114,6 @@ class Enhancer(nn.Module):
         self.encoder = MetadataEncoder(
             metadata_size=metadata_size,
             metadata_features=metadata_features,
-            init_num_features=init_num_features,
             size=size,
         )
 
@@ -181,10 +175,9 @@ class Enhancer(nn.Module):
 
 
 if __name__ == "__main__":
-    x = torch.rand((1, 3, 128, 128))
-    m = torch.rand((1, 5, 1, 1))
-    g = Enhancer()
-    print(g(x, m).shape)
     from torchsummary import summary
 
-    summary(g, [(3, 128, 128), (5, 1, 1)])
+    g = Enhancer()
+
+    summary(g.encoder, (5, 1, 1))
+    summary(g, [(3, 132, 132), (5, 1, 1)])

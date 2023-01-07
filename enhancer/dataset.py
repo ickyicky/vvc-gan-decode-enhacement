@@ -45,8 +45,8 @@ class VVCDataset(torch.utils.data.Dataset):
         orig_chunk_folder: str,
         chunk_transform: Any,
         metadata_transform: Any,
-        chunk_height: int = 128,
-        chunk_width: int = 128,
+        chunk_height: int = 132,
+        chunk_width: int = 132,
     ) -> None:
         super().__init__()
 

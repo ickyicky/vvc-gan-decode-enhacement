@@ -20,7 +20,7 @@ class Discriminator(nn.Module):
     def __init__(
         self,
         nc: int = 3,
-        size: int = 128,
+        size: int = 132,
     ):
         super().__init__()
 
@@ -49,3 +49,11 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+
+
+if __name__ == "__main__":
+    from torchsummary import summary
+
+    g = Discriminator()
+
+    summary(g, (3, 132, 132))
