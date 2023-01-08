@@ -97,57 +97,53 @@ class Splitter:
         """
         splits chunks :)
         """
-        files = os.listdir(self.encoded_path)
+        files = sorted(os.listdir(self.encoded_path))
 
         with open(self.done_cache) as f:
             done = f.read().splitlines()
 
         for file in tqdm(files):
-            try:
-                if not file.endswith(self.FILE_FORMAT):
-                    continue
+            if not file.endswith(self.FILE_FORMAT):
+                continue
 
-                if file in done:
-                    continue
+            if file in done:
+                continue
 
-                metadata = self.load_metadata_for(file)
-                intra_frames = self.load_intra_frames(metadata)
+            metadata = self.load_metadata_for(file)
+            intra_frames = self.load_intra_frames(metadata)
 
-                horizontal_chunks = math.ceil(metadata.width / self.chunk_width)
-                vertical_chunks = math.ceil(metadata.height / self.chunk_height)
+            horizontal_chunks = math.ceil(metadata.width / self.chunk_width)
+            vertical_chunks = math.ceil(metadata.height / self.chunk_height)
 
-                video_chunks = []
+            video_chunks = []
 
-                for frame in range(metadata.frames):
-                    for h_part in range(horizontal_chunks):
-                        h_pos = min(
+            for frame in range(metadata.frames):
+                for h_part in range(horizontal_chunks):
+                    h_pos = min(
+                        (
+                            h_part * (self.chunk_width - self.chunk_border),
+                            metadata.width - self.chunk_width,
+                        )
+                    )
+                    for v_part in range(vertical_chunks):
+                        v_pos = min(
                             (
-                                h_part * (self.chunk_width - self.chunk_border),
-                                metadata.width - self.chunk_width,
+                                v_part * (self.chunk_height - self.chunk_border),
+                                metadata.height - self.chunk_height,
                             )
                         )
-                        for v_part in range(vertical_chunks):
-                            v_pos = min(
-                                (
-                                    v_part * (self.chunk_height - self.chunk_border),
-                                    metadata.height - self.chunk_height,
-                                )
-                            )
-                            chunk = Chunk(
-                                metadata=metadata,
-                                frame=frame,
-                                position=(v_pos, h_pos),
-                                is_intra=frame in intra_frames,
-                            )
-                            video_chunks.append(chunk)
+                        chunk = Chunk(
+                            metadata=metadata,
+                            frame=frame,
+                            position=(v_pos, h_pos),
+                            is_intra=frame in intra_frames,
+                        )
+                        video_chunks.append(chunk)
 
-                self.save_chunks(video_chunks)
-                done.append(file)
-            except:
-                break
-
-        with open(self.done_cache, "w"):
-            f.write("\n".join(done))
+            self.save_chunks(video_chunks)
+            done.append(file)
+            with open(self.done_cache, "w"):
+                f.write("\n".join(done))
 
     def load_metadata_for(self, file: str) -> Metadata:
         """
