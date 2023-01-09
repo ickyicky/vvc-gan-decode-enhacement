@@ -129,6 +129,6 @@ if __name__ == "__main__":
     d.setup()
     train = d.train_dataloader()
     for x in train:
-        print(x)
+        print(x[0].shape)
         print(x[2].shape)
         break

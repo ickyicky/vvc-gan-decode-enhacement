@@ -101,11 +101,11 @@ class VVCDataset(torch.utils.data.Dataset):
 
         with open(chunk_path, "rb") as f:
             _chunk = np.frombuffer(f.read(), dtype=np.uint8)
-            _chunk = np.resize(_chunk, (3, self.chunk_height, self.chunk_width))
+            _chunk = np.resize(_chunk, (self.chunk_height, self.chunk_width, 3))
 
         with open(orig_chunk_path, "rb") as f:
             orig_chunk = np.frombuffer(f.read(), dtype=np.uint8)
-            orig_chunk = np.resize(orig_chunk, (3, self.chunk_height, self.chunk_width))
+            orig_chunk = np.resize(orig_chunk, (self.chunk_height, self.chunk_width, 3))
 
         return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 
