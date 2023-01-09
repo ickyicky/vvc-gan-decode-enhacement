@@ -36,7 +36,7 @@ class VVCDataset(torch.utils.data.Dataset):
     decoding YUV files etc, pretty time consuming tasks
     """
 
-    CHUNK_GLOB = "{folder}/*/*/*.png"
+    CHUNK_GLOB = "{folder}/*/*/*/*.png"
     CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}/{position[0]}_{position[1]}.png"
     ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.png"
 
@@ -141,12 +141,13 @@ if __name__ == "__main__":
     import sys
     from pprint import pprint
 
-    d = VVCDataset(*sys.argv[1:])
+    transform = lambda x: x
+
+    d = VVCDataset(*sys.argv[1:], *[transform, transform])
     pprint(d)
     len_d = len(d)
     pprint(len_d)
     import random
 
     idx = random.randint(0, len_d)
-    pprint(d.chunks[idx])
     pprint(d[idx])
