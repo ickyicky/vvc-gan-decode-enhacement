@@ -2,7 +2,6 @@ from .models.discriminator import Discriminator
 from .models.enhancer import Enhancer
 from .datamodule import VVCDataModule
 from .gan_module import GANModule
-from .enhancer_module import EnhancerModule
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
@@ -33,12 +32,6 @@ if __name__ == "__main__":
         default=5,
         help="number of epochs",
     )
-    parser.add_argument(
-        "--restoration",
-        "-r",
-        action="store_true",
-        help="train restoration",
-    )
 
     args = parser.parse_args()
 
@@ -50,15 +43,11 @@ if __name__ == "__main__":
         args.orig_chunks_dir,
     )
 
-    if args.restoration:
-        module = EnhancerModule(
-            enhancer,
-        )
-    else:
-        module = GANModule(
-            enhancer,
-            discriminator,
-        )
+    module = GANModule(
+        enhancer,
+        discriminator,
+    )
+
     wandb_logger = WandbLogger(
         project="vvc-enhancer",
     )
