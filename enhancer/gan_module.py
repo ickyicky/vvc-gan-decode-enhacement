@@ -11,8 +11,8 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 0.0001,
-        discriminator_lr: float = 0.00001,
+        enhancer_lr: float = 0.005,
+        discriminator_lr: float = 0.0001,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
     ):
@@ -115,8 +115,20 @@ class GANModule(pl.LightningModule):
         )
 
         lr_schedulers = [
-            torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
-            for optimizer in [opt_d]
+            {
+                "scheduler": torch.optim.lr_scheduler.StepLR(
+                    opt_d, step_size=100, gamma=0.5
+                ),
+                "interval": "step",
+                "frequency": 1,
+            },
+            {
+                "scheduler": torch.optim.lr_scheduler.StepLR(
+                    opt_g, step_size=100, gamma=0.9
+                ),
+                "interval": "step",
+                "frequency": 1,
+            },
         ]
 
         return [opt_g, opt_d], []

@@ -17,8 +17,8 @@ class VVCDataModule(pl.LightningDataModule):
         chunk_height: int = 132,
         chunk_width: int = 132,
         batch_size: int = 128,
-        val_percentage: int = 20,
-        test_percentage: int = 20,
+        val_percentage: int = 5,
+        test_percentage: int = 5,
     ):
         """__init__.
 
