@@ -112,4 +112,5 @@ class GANModule(pl.LightningModule):
             for optimizer in (opt_g, opt_d)
         ]
 
-        return [opt_g, opt_d], lr_schedulers
+        # lr shedulers not utilized yet
+        return [opt_g, opt_d], []

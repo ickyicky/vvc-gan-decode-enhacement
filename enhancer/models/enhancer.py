@@ -99,8 +99,8 @@ class Enhancer(nn.Module):
         drop_rate: float = 0,
         metadata_size: int = 6,
         metadata_features: int = 6,
-        up_blocks_config: List[int] = (2, 2),
-        down_blocks_config: List[int] = (2, 2),
+        up_blocks_config: List[int] = [2],
+        down_blocks_config: List[int] = [2],
     ) -> None:
         """Construct a DenseNet-based generator
 
@@ -148,9 +148,7 @@ class Enhancer(nn.Module):
 
         # output part
         self.output_block = nn.Sequential(
-            nn.Conv2d(
-                num_features, nc, kernel_size=3, stride=1, padding=1
-            ),
+            nn.Conv2d(num_features, nc, kernel_size=5, stride=1, padding=2),
             nn.Tanh(),
         )
 
@@ -177,6 +175,8 @@ if __name__ == "__main__":
     from torchsummary import summary
 
     g = Enhancer()
+    result = g(torch.rand((1, 3, 132, 132)), torch.rand((1, 6, 1, 1)))
+    print(result.shape)
 
     summary(g.encoder, (6, 1, 1))
     summary(g, [(3, 132, 132), (6, 1, 1)])
