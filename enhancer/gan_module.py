@@ -11,7 +11,7 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 0.005,
+        enhancer_lr: float = 0.0001,
         discriminator_lr: float = 0.00001,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
@@ -55,7 +55,7 @@ class GANModule(pl.LightningModule):
             if batch_idx % 20 == 0:
                 self.logger.experiment.log(
                     {
-                        "examples": [
+                        "enhanced": [
                             wandb.Image(
                                 x,
                                 caption=f"Pred: {pred.item()}",
@@ -65,12 +65,19 @@ class GANModule(pl.LightningModule):
                                 preds.cpu()[: self.num_samples],
                             )
                         ],
-                        "reference": [
+                        "uncompressed": [
                             wandb.Image(
                                 x,
-                                caption=f"reference image {i}",
+                                caption=f"uncompressed image {i}",
                             )
                             for i, x in enumerate(orig_chunks[: self.num_samples])
+                        ],
+                        "decompressed": [
+                            wandb.Image(
+                                x,
+                                caption=f"decompressed image {i}",
+                            )
+                            for i, x in enumerate(chunks[: self.num_samples])
                         ],
                     }
                 )
@@ -108,9 +115,8 @@ class GANModule(pl.LightningModule):
         )
 
         lr_schedulers = [
-            torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
-            for optimizer in (opt_g, opt_d)
+            torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
+            for optimizer in [opt_d]
         ]
 
-        # lr shedulers not utilized yet
         return [opt_g, opt_d], []
