@@ -149,7 +149,7 @@ class Enhancer(nn.Module):
         # output part
         self.output_block = nn.Sequential(
             nn.Conv2d(
-                num_features + init_num_features, nc, kernel_size=3, stride=1, padding=1
+                num_features, nc, kernel_size=3, stride=1, padding=1
             ),
             nn.Tanh(),
         )
@@ -170,7 +170,6 @@ class Enhancer(nn.Module):
         encoded = self.encoder(metadata)
         data = torch.cat((input_, encoded), 1)
         data = self.model(data)
-        data = torch.cat((input_, data), 1)
         return self.output_block(data)
 
 
