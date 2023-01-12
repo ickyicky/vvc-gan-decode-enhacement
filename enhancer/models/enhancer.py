@@ -53,18 +53,10 @@ class MetadataEncoder(nn.Module):
     ) -> None:
         super().__init__()
 
+        self.size = size
         num_features = metadata_features
 
-        model = [
-            EncoderBlock(
-                metadata_size,
-                metadata_features,
-                kernel_size=size // 2,
-                stride=1,
-                padding=0,
-            )
-        ]
-
+        model = []
         model.append(
             nn.Sequential(
                 nn.ConvTranspose2d(
@@ -80,6 +72,7 @@ class MetadataEncoder(nn.Module):
         self.model = nn.Sequential(*model)
 
     def forward(self, x: Tensor) -> Tensor:
+        x = torch.nn.functional.interpolate(x, size=self.size // 2)
         return self.model(x)
 
 
