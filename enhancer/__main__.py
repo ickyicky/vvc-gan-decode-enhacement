@@ -2,6 +2,7 @@ from .models.discriminator import Discriminator
 from .models.enhancer import Enhancer
 from .datamodule import VVCDataModule
 from .gan_module import GANModule
+from .utils import weights_init
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -38,6 +39,8 @@ if __name__ == "__main__":
 
     enhancer = Enhancer()
     discriminator = Discriminator()
+    enhancer.apply(weights_init)
+    discriminator.apply(weights_init)
 
     data_module = VVCDataModule(
         args.chunks_dir,
