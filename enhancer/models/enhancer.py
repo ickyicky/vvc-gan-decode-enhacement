@@ -141,6 +141,40 @@ class DenseBlock(nn.Module):
         return self.model(_input)
 
 
+class Transition(nn.Module):
+    """Transition."""
+
+    def __init__(self, num_input_features: int, num_output_features: int):
+        """__init__.
+
+        :param num_input_features:
+        :type num_input_features: int
+        :param num_output_features:
+        :type num_output_features: int
+        """
+        super().__init__()
+        self.bn = nn.BatchNorm2d(num_input_features)
+        self.conv = nn.Conv2d(
+            num_input_features,
+            num_output_features,
+            kernel_size=1,
+            bias=False,
+        )
+        self.relu = nn.PReLU()
+
+    def forward(self, x: Tensor) -> Tensor:
+        """forward.
+
+        :param x:
+        :type x: Tensor
+        :rtype: Tensor
+        """
+        out = self.bn(x)
+        out = self.conv(out)
+        out = self.relu(out)
+        return out
+
+
 class MetadataEncoder(nn.Module):
     """
     Encoder of metadata
@@ -206,11 +240,11 @@ class Enhancer(nn.Module):
         num_features = init_num_features
 
         # dense blocks
+        # block 1, 7x7
         dense_blocks = [
             DenseBlock(
                 num_input_features=num_features,
                 growth_rate=growth_rate,
-                bn_size=2,
                 kernel_size=7,
                 padding=3,
                 num_layers=8,
@@ -219,10 +253,18 @@ class Enhancer(nn.Module):
         num_features += growth_rate * 8
 
         dense_blocks.append(
+            Transition(
+                num_features,
+                num_features // 2,
+            )
+        )
+        num_features = num_features // 2
+
+        # block 2, 5x5
+        dense_blocks.append(
             DenseBlock(
                 num_input_features=num_features,
                 growth_rate=growth_rate,
-                bn_size=2,
                 kernel_size=5,
                 padding=2,
                 num_layers=8,
@@ -231,14 +273,30 @@ class Enhancer(nn.Module):
         num_features += growth_rate * 8
 
         dense_blocks.append(
+            Transition(
+                num_features,
+                num_features // 2,
+            )
+        )
+        num_features = num_features // 2
+
+        # block 3, 3x3
+        dense_blocks.append(
             DenseBlock(
                 num_input_features=num_features,
                 growth_rate=growth_rate,
-                bn_size=2,
                 num_layers=4,
             )
         )
         num_features += growth_rate * 4
+
+        dense_blocks.append(
+            Transition(
+                num_features,
+                num_features // 2,
+            )
+        )
+        num_features = num_features // 2
 
         self.dense_blocks = nn.Sequential(*dense_blocks)
 
