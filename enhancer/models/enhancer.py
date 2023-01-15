@@ -1,42 +1,144 @@
-from typing import List
-
+from typing import List, Optional
 import torch
 import torch.nn as nn
 from math import sqrt
 from torch import Tensor
-from torchvision.models.densenet import _DenseBlock, _Transition
 from pydantic import validate_arguments
 
 
-class _TransitionUp(nn.Sequential):
-    def __init__(self, num_input_features: int, num_output_features: int) -> None:
-        super().__init__()
-        self.norm = nn.BatchNorm2d(num_input_features)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv = nn.ConvTranspose2d(
-            num_input_features, num_output_features, kernel_size=2, stride=2
-        )
+class DenseLayer(nn.Module):
+    """DenseLayer."""
 
-
-class EncoderBlock(nn.Sequential):
     def __init__(
         self,
         num_input_features: int,
-        num_output_features: int,
-        kernel_size: int,
-        stride: int,
-        padding: int,
+        growth_rate: int,
+        kernel_size: int = 3,
+        stride: int = 1,
+        padding: int = 1,
+        bn_size: Optional[int] = None,
     ) -> None:
+        """__init__.
+
+        :param num_input_features:
+        :type num_input_features: int
+        :param growth_rate:
+        :type growth_rate: int
+        :param kernel_size:
+        :type kernel_size: int
+        :param stride:
+        :type stride: int
+        :param padding:
+        :type padding: int
+        :param bn_size:
+        :type bn_size: Optional[int]
+        :rtype: None
+        """
         super().__init__()
-        self.conv = nn.ConvTranspose2d(
-            num_input_features,
-            num_output_features,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
+
+        parts = []
+        num_features = num_input_features
+
+        if bn_size is not None:
+            parts = [
+                nn.BatchNorm2d(num_input_features),
+                nn.PReLU(),
+                nn.Conv2d(
+                    num_features,
+                    bn_size * growth_rate,
+                    kernel_size=1,
+                    stride=1,
+                    bias=False,
+                ),
+            ]
+            num_features = bn_size * growth_rate
+
+        self.model = nn.Sequential(
+            *parts,
+            nn.BatchNorm2d(num_features),
+            nn.PReLU(),
+            nn.Conv2d(
+                num_features,
+                growth_rate,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                bias=False,
+            ),
         )
-        self.norm = nn.BatchNorm2d(num_output_features)
-        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, _input: Tensor) -> Tensor:
+        """forward.
+
+        :param _input:
+        :type _input: Tensor
+        :rtype: Tensor
+        """
+        output = self.model(_input)
+        return torch.cat((_input, output), 1)
+
+
+class DenseBlock(nn.Module):
+    """DenseBlock."""
+
+    def __init__(
+        self,
+        num_input_features: int,
+        growth_rate: int,
+        num_layers: int = 1,
+        kernel_size: int = 3,
+        stride: int = 1,
+        padding: int = 1,
+        bn_size: Optional[int] = None,
+    ) -> None:
+        """__init__.
+
+        :param num_input_features:
+        :type num_input_features: int
+        :param growth_rate:
+        :type growth_rate: int
+        :param layers:
+        :type layers: int
+        :param kernel_size:
+        :type kernel_size: int
+        :param stride:
+        :type stride: int
+        :param padding:
+        :type padding: int
+        :param bn_size:
+        :type bn_size: Optional[int]
+        :rtype: None
+        """
+        super().__init__()
+
+        layers = []
+        num_features = num_input_features
+
+        for _ in range(num_layers):
+            layers.append(
+                DenseLayer(
+                    num_input_features=num_features,
+                    growth_rate=growth_rate,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                    bn_size=bn_size,
+                )
+            )
+            num_features += growth_rate
+
+        self.model = nn.Sequential(
+            *layers,
+        )
+
+    def forward(self, _input: Tensor) -> Tensor:
+        """forward.
+
+        :param _input:
+        :type _input: Tensor
+        :rtype: Tensor
+        """
+        return self.model(_input)
 
 
 class MetadataEncoder(nn.Module):
@@ -56,24 +158,17 @@ class MetadataEncoder(nn.Module):
         self.size = size
         num_features = metadata_features
 
-        model = []
-        model.append(
-            nn.Sequential(
-                nn.ConvTranspose2d(
-                    num_features,
-                    metadata_features,
-                    kernel_size=4,
-                    stride=2,
-                    padding=1,
-                ),
-                nn.Tanh(),
-            )
+        self.conv = nn.ConvTranspose2d(
+            num_features,
+            metadata_features,
+            kernel_size=4,
+            stride=2,
+            padding=1,
         )
-        self.model = nn.Sequential(*model)
 
     def forward(self, x: Tensor) -> Tensor:
         x = torch.nn.functional.interpolate(x, size=self.size // 2)
-        return self.model(x)
+        return self.conv(x)
 
 
 class Enhancer(nn.Module):
@@ -86,68 +181,72 @@ class Enhancer(nn.Module):
         self,
         nc: int = 3,
         size: int = 132,
-        init_num_features: int = 3,
+        init_num_features: int = 128,
         growth_rate: int = 8,
-        bn_size: int = 2,
-        drop_rate: float = 0,
         metadata_size: int = 6,
         metadata_features: int = 6,
-        up_blocks_config: List[int] = [2, 2, 2],
-        down_blocks_config: List[int] = [2, 2, 2],
     ) -> None:
-        """Construct a DenseNet-based generator
-
-        Parameters:
-            nc (int)    -- number of channels in input and output image
-            size (int)  -- size of input and output image
-        """
-
         super().__init__()
 
-        self.encoder = MetadataEncoder(
+        self.metadata_encoder = MetadataEncoder(
             metadata_size=metadata_size,
             metadata_features=metadata_features,
             size=size,
         )
 
-        # blocks
-        parts = []
-        blocks_down = [[n, _Transition] for n in down_blocks_config]
-        blocks_down[-1][1] = None  # no transition at end
-        blocks_up = [[n, _TransitionUp] for n in up_blocks_config]
-        blocks_up[-1][1] = None  # no transition at end
+        # input encoding
+        self.input_encoder = nn.Conv2d(
+            nc,
+            init_num_features - metadata_features,
+            kernel_size=9,
+            stride=1,
+            padding=4,
+            bias=False,
+        )
+        num_features = init_num_features
 
-        num_features = init_num_features + metadata_features
+        # dense blocks
+        dense_blocks = [
+            DenseBlock(
+                num_input_features=num_features,
+                growth_rate=growth_rate,
+                bn_size=2,
+                kernel_size=7,
+                padding=3,
+                num_layers=8,
+            ),
+        ]
+        num_features += growth_rate * 8
 
-        for num_layers, transition in blocks_down + blocks_up:
-            parts.append(
-                _DenseBlock(
-                    num_layers=num_layers,
-                    num_input_features=num_features,
-                    bn_size=bn_size,
-                    growth_rate=growth_rate,
-                    drop_rate=drop_rate,
-                )
+        dense_blocks.append(
+            DenseBlock(
+                num_input_features=num_features,
+                growth_rate=growth_rate,
+                bn_size=2,
+                kernel_size=5,
+                padding=2,
+                num_layers=8,
             )
-            num_features += growth_rate * num_layers
-            if transition:
-                parts.append(
-                    transition(
-                        num_features,
-                        num_features // 2,
-                    )
-                )
-                num_features = num_features // 2
+        )
+        num_features += growth_rate * 8
+
+        dense_blocks.append(
+            DenseBlock(
+                num_input_features=num_features,
+                growth_rate=growth_rate,
+                bn_size=2,
+                num_layers=4,
+            )
+        )
+        num_features += growth_rate * 4
+
+        self.dense_blocks = nn.Sequential(*dense_blocks)
 
         # output part
         self.output_block = nn.Sequential(
-            nn.Conv2d(
-                num_features + init_num_features, nc, kernel_size=5, stride=1, padding=2
-            ),
+            nn.Conv2d(num_features, nc, kernel_size=5, stride=1, padding=2),
             nn.Tanh(),
         )
-
-        self.model = nn.Sequential(*parts)
 
         # Official init from torch repo.
         for m in self.modules():
@@ -160,10 +259,10 @@ class Enhancer(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
-        encoded = self.encoder(metadata)
-        data = torch.cat((input_, encoded), 1)
-        data = self.model(data)
-        data = torch.cat((input_, data), 1)
+        encoded_metadata = self.metadata_encoder(metadata)
+        encoded_input = self.input_encoder(input_)
+        data = torch.cat((encoded_input, encoded_metadata), 1)
+        data = self.dense_blocks(data)
         return self.output_block(data)
 
 
@@ -174,5 +273,5 @@ if __name__ == "__main__":
     result = g(torch.rand((1, 3, 132, 132)), torch.rand((1, 6, 1, 1)))
     print(result.shape)
 
-    summary(g.encoder, (6, 1, 1))
+    summary(g.metadata_encoder, (6, 1, 1))
     summary(g, [(3, 132, 132), (6, 1, 1)])
