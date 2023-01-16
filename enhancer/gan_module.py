@@ -32,7 +32,7 @@ class GANModule(pl.LightningModule):
         return self.enhancer(chunks, metadata)
 
     def adversarial_loss(self, y_hat, y):
-        return F.mse_loss(y_hat.view(-1), y.view(-1))
+        return F.binary_cross_entropy(y_hat, y)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata = batch
