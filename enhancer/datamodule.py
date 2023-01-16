@@ -7,6 +7,50 @@ import pytorch_lightning as pl
 from .dataset import VVCDataset
 
 
+class LoaderWrapper:
+    """LoaderWrapper."""
+
+    def __init__(self, dataloader: DataLoader, n_step: int):
+        """__init__.
+
+        :param dataloader:
+        :type dataloader: DataLoader
+        :param n_step:
+        :type n_step: int
+        """
+        self.n_step = n_step
+        self.idx = 0
+        self.iter_loader = iter(dataloader)
+
+    def __iter__(self) -> "LoaderWrapper":
+        """__iter__.
+
+        :rtype: "LoaderWrapper"
+        """
+        return self
+
+    def __len__(self) -> int:
+        """__len__.
+
+        :rtype: int
+        """
+        return self.n_step
+
+    def __next__(self):
+        """__next__."""
+        if self.idx == self.n_step:
+            self.idx = 0
+            raise StopIteration
+        else:
+            self.idx += 1
+
+        try:
+            return next(self.iter_loader)
+        except StopIteration:
+            self.iter_loader = iter(self.loader)
+            return next(self.iter_loader)
+
+
 class VVCDataModule(pl.LightningDataModule):
     """VVCDataModule."""
 
@@ -17,6 +61,7 @@ class VVCDataModule(pl.LightningDataModule):
         chunk_height: int = 132,
         chunk_width: int = 132,
         batch_size: int = 8,
+        n_step: int = 10000,
         val_percentage: int = 5,
         test_percentage: int = 5,
     ):
@@ -39,6 +84,7 @@ class VVCDataModule(pl.LightningDataModule):
         """
         super().__init__()
         self.batch_size = batch_size
+        self.n_step = n_step
 
         self.chunk_folder = chunk_folder
         self.orig_chunk_folder = orig_chunk_folder
@@ -75,35 +121,50 @@ class VVCDataModule(pl.LightningDataModule):
         self.dataset_test = Subset(dataset, indices[val_items:test_items])
         self.dataset_train = Subset(dataset, indices[val_items + test_items :])
 
+    def wrap_loader(self, data_loader: DataLoader) -> LoaderWrapper:
+        """wrap_loader.
+
+        :param data_loader:
+        :type data_loader: DataLoader
+        :rtype: LoaderWrapper
+        """
+        return LoaderWrapper(
+            data_loader,
+            self.n_step,
+        )
+
     def train_dataloader(self):
         """train_dataloader."""
-        return DataLoader(
+        data_loader = DataLoader(
             self.dataset_train,
             batch_size=self.batch_size,
             shuffle=True,
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
+        return self.wrap_loader(data_loader)
 
     def test_dataloader(self):
         """test_dataloader."""
-        return DataLoader(
+        data_loader = DataLoader(
             self.dataset_test,
             batch_size=self.batch_size,
             shuffle=False,
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
+        return self.wrap_loader(data_loader)
 
     def val_dataloader(self):
         """val_dataloader."""
-        return DataLoader(
+        data_loader = DataLoader(
             self.dataset_val,
             batch_size=self.batch_size,
             shuffle=False,
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
+        return self.wrap_loader(data_loader)
 
     def chunk_transform(self):
         """chunk_transform."""

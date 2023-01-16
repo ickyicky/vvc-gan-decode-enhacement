@@ -39,8 +39,6 @@ class Discriminator(nn.Module):
         parts = [
             *blocks,
             nn.Conv2d(cur_features, 1, kernel_size=4, stride=1, padding=0, bias=False),
-            nn.Flatten(),
-            nn.Sigmoid(),
         ]
 
         self.model = nn.Sequential(
