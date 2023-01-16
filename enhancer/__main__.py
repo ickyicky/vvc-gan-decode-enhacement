@@ -5,7 +5,7 @@ from .gan_module import GANModule
 from .utils import weights_init
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.callbacks.progress import TQDMProgressBar
 from pytorch_lightning.loggers import WandbLogger
 import torch
@@ -63,6 +63,7 @@ if __name__ == "__main__":
         callbacks=[
             TQDMProgressBar(refresh_rate=20),
             LearningRateMonitor(logging_interval="step"),
+            ModelCheckpoint(dirpath="checkpoints", filename="{epoch}"),
         ],
         logger=wandb_logger,
     )
