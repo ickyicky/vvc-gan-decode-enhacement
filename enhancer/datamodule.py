@@ -62,7 +62,7 @@ class VVCDataModule(pl.LightningDataModule):
         chunk_height: int = 132,
         chunk_width: int = 132,
         batch_size: int = 8,
-        n_step: int = 10000,
+        n_step: int = 1000,
         val_percentage: int = 5,
         test_percentage: int = 5,
     ):
@@ -85,7 +85,6 @@ class VVCDataModule(pl.LightningDataModule):
         """
         super().__init__()
         self.batch_size = batch_size
-        self.n_step = n_step
 
         self.chunk_folder = chunk_folder
         self.orig_chunk_folder = orig_chunk_folder
@@ -95,6 +94,10 @@ class VVCDataModule(pl.LightningDataModule):
 
         self.val_percentage = val_percentage
         self.test_percentage = test_percentage
+
+        self.n_step = n_step
+        self.n_step_valid = int(n_step / 100 * self.val_percentage)
+        self.n_step_test = int(n_step / 100 * self.test_percentage)
 
         self.dataset_val = None
         self.dataset_test = None
@@ -122,18 +125,6 @@ class VVCDataModule(pl.LightningDataModule):
         self.dataset_test = Subset(dataset, indices[val_items:test_items])
         self.dataset_train = Subset(dataset, indices[val_items + test_items :])
 
-    def wrap_loader(self, data_loader: DataLoader) -> LoaderWrapper:
-        """wrap_loader.
-
-        :param data_loader:
-        :type data_loader: DataLoader
-        :rtype: LoaderWrapper
-        """
-        return LoaderWrapper(
-            data_loader,
-            self.n_step,
-        )
-
     def train_dataloader(self):
         """train_dataloader."""
         data_loader = DataLoader(
@@ -143,7 +134,10 @@ class VVCDataModule(pl.LightningDataModule):
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
-        return self.wrap_loader(data_loader)
+        return LoaderWrapper(
+            data_loader,
+            self.n_step,
+        )
 
     def test_dataloader(self):
         """test_dataloader."""
@@ -154,7 +148,10 @@ class VVCDataModule(pl.LightningDataModule):
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
-        return self.wrap_loader(data_loader)
+        return LoaderWrapper(
+            data_loader,
+            self.n_step_test,
+        )
 
     def val_dataloader(self):
         """val_dataloader."""
@@ -165,7 +162,10 @@ class VVCDataModule(pl.LightningDataModule):
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
-        return self.wrap_loader(data_loader)
+        return LoaderWrapper(
+            data_loader,
+            self.n_step_valid,
+        )
 
     def chunk_transform(self):
         """chunk_transform."""
