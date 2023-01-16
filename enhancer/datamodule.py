@@ -20,6 +20,7 @@ class LoaderWrapper:
         """
         self.n_step = n_step
         self.idx = 0
+        self.dataloader = dataloader
         self.iter_loader = iter(dataloader)
 
     def __iter__(self) -> "LoaderWrapper":
@@ -47,7 +48,7 @@ class LoaderWrapper:
         try:
             return next(self.iter_loader)
         except StopIteration:
-            self.iter_loader = iter(self.loader)
+            self.iter_loader = iter(self.dataloader)
             return next(self.iter_loader)
 
 
