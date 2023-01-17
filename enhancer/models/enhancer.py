@@ -1,7 +1,6 @@
-from typing import List, Optional
+from typing import Optional
 import torch
 import torch.nn as nn
-from math import sqrt
 from torch import Tensor
 from pydantic import validate_arguments
 
