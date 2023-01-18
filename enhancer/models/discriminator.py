@@ -10,8 +10,9 @@ class Discriminator(DenseNet):
         super().__init__(
             num_init_features=nc,
             num_classes=1,
-            block_config=(2, 4, 8, 6),
+            block_config=(1, 2, 4, 3),
             bn_size=2,
+            growth_rate=8,
         )
 
 
