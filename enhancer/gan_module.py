@@ -11,7 +11,7 @@ class GANModule(pl.LightningModule):
         enhancer,
         discriminator,
         enhancer_lr: float = 0.0001,
-        discriminator_lr: float = 0.00009,
+        discriminator_lr: float = 0.00005,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
     ):
@@ -31,7 +31,7 @@ class GANModule(pl.LightningModule):
         return self.enhancer(chunks, metadata)
 
     def adversarial_loss(self, y_hat, y):
-        return F.mse_loss(y_hat, y)
+        return F.binary_cross_entropy(y_hat, y)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata = batch
