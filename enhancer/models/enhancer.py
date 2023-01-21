@@ -189,19 +189,10 @@ class MetadataEncoder(nn.Module):
         super().__init__()
 
         self.size = size
-        num_features = metadata_features
-
-        self.conv = nn.ConvTranspose2d(
-            num_features,
-            metadata_features,
-            kernel_size=4,
-            stride=2,
-            padding=1,
-        )
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.nn.functional.interpolate(x, size=self.size // 2)
-        return self.conv(x)
+        x = torch.nn.functional.interpolate(x, size=self.size)
+        return x
 
 
 class Enhancer(nn.Module):
@@ -243,10 +234,10 @@ class Enhancer(nn.Module):
         dense_blocks = [
             DenseBlock(
                 num_input_features=num_features,
-                growth_rate=growth_rate,
+                growth_rate=growth_rate * 8,
                 kernel_size=7,
                 padding=3,
-                num_layers=8,
+                num_layers=1,
             ),
         ]
         num_features += growth_rate * 8
@@ -263,10 +254,10 @@ class Enhancer(nn.Module):
         dense_blocks.append(
             DenseBlock(
                 num_input_features=num_features,
-                growth_rate=growth_rate,
+                growth_rate=growth_rate * 8,
                 kernel_size=5,
                 padding=2,
-                num_layers=8,
+                num_layers=1,
             )
         )
         num_features += growth_rate * 8
@@ -283,8 +274,8 @@ class Enhancer(nn.Module):
         dense_blocks.append(
             DenseBlock(
                 num_input_features=num_features,
-                growth_rate=growth_rate,
-                num_layers=4,
+                growth_rate=growth_rate * 4,
+                num_layers=1,
             )
         )
         num_features += growth_rate * 4
