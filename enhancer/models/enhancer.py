@@ -234,7 +234,8 @@ class Enhancer(nn.Module):
         for kernel_size, padding, num_layers in (
             (7, 3, 12),
             (5, 2, 8),
-            (3, 1, 4),
+            (3, 1, 2),
+            (3, 1, 2),
         ):
             dense_blocks.append(
                 DenseBlock(
