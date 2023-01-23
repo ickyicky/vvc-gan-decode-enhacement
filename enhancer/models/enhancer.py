@@ -230,63 +230,30 @@ class Enhancer(nn.Module):
         num_features = init_num_features
 
         # dense blocks
-        # block 1, 7x7
-        dense_blocks = [
-            DenseBlock(
-                num_input_features=num_features,
-                growth_rate=growth_rate * 8,
-                kernel_size=7,
-                padding=3,
-                num_layers=1,
-            ),
-        ]
-        num_features += growth_rate * 8
-
-        dense_blocks.append(
-            Transition(
-                num_features,
-                num_features // 2,
+        dense_blocks = []
+        for kernel_size, padding, num_layers in (
+            (7, 3, 12),
+            (5, 2, 8),
+            (3, 1, 4),
+        ):
+            dense_blocks.append(
+                DenseBlock(
+                    num_input_features=num_features,
+                    growth_rate=growth_rate,
+                    kernel_size=kernel_size,
+                    padding=padding,
+                    num_layers=num_layers,
+                )
             )
-        )
-        num_features = num_features // 2
+            num_features += growth_rate * num_layers
 
-        # block 2, 5x5
-        dense_blocks.append(
-            DenseBlock(
-                num_input_features=num_features,
-                growth_rate=growth_rate * 8,
-                kernel_size=5,
-                padding=2,
-                num_layers=1,
+            dense_blocks.append(
+                Transition(
+                    num_features,
+                    num_features // 2,
+                )
             )
-        )
-        num_features += growth_rate * 8
-
-        dense_blocks.append(
-            Transition(
-                num_features,
-                num_features // 2,
-            )
-        )
-        num_features = num_features // 2
-
-        # block 3, 3x3
-        dense_blocks.append(
-            DenseBlock(
-                num_input_features=num_features,
-                growth_rate=growth_rate * 4,
-                num_layers=1,
-            )
-        )
-        num_features += growth_rate * 4
-
-        dense_blocks.append(
-            Transition(
-                num_features,
-                num_features // 2,
-            )
-        )
-        num_features = num_features // 2
+            num_features = num_features // 2
 
         self.dense_blocks = nn.Sequential(*dense_blocks)
 
@@ -321,5 +288,4 @@ if __name__ == "__main__":
     result = g(torch.rand((1, 3, 132, 132)), torch.rand((1, 6, 1, 1)))
     print(result.shape)
 
-    summary(g.metadata_encoder, (6, 1, 1))
-    summary(g, [(3, 132, 132), (6, 1, 1)])
+    summary(g, [(3, 132, 132), (6, 1, 1)], device="cpu")

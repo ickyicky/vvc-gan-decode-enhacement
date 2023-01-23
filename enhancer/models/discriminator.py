@@ -56,4 +56,4 @@ if __name__ == "__main__":
 
     g = Discriminator()
 
-    summary(g, (3, 132, 132))
+    summary(g, (3, 132, 132), device="cpu")
