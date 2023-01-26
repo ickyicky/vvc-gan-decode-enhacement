@@ -34,23 +34,34 @@ if __name__ == "__main__":
         default=5,
         help="number of epochs",
     )
+    parser.add_argument(
+        "-c",
+        "--checkpoint",
+        metavar="FILE",
+        required=False,
+        action="store",
+        default=None,
+        help="checkpoint to load",
+    )
 
     args = parser.parse_args()
-
-    enhancer = Enhancer()
-    discriminator = Discriminator()
-    enhancer.apply(weights_init)
-    discriminator.apply(weights_init)
 
     data_module = VVCDataModule(
         args.chunks_dir,
         args.orig_chunks_dir,
     )
 
-    module = GANModule(
-        enhancer,
-        discriminator,
-    )
+    if args.checkpoint:
+        module = GANModule.load_from_checkpoint(args.checkpoint)
+    else:
+        enhancer = Enhancer()
+        discriminator = Discriminator()
+        enhancer.apply(weights_init)
+        discriminator.apply(weights_init)
+        module = GANModule(
+            enhancer,
+            discriminator,
+        )
 
     wandb_logger = WandbLogger(
         project="vvc-enhancer",
