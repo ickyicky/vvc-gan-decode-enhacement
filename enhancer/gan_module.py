@@ -16,7 +16,7 @@ class GANModule(pl.LightningModule):
         num_samples: int = 6,
     ):
         super().__init__()
-        self.save_hyperparameters(ignore=["enhancer", "discriminator"])
+        self.save_hyperparameters()
 
         self.enhancer = enhancer
         self.discriminator = discriminator
