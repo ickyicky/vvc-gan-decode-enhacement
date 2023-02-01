@@ -143,7 +143,9 @@ class DenseBlock(nn.Module):
 class Transition(nn.Module):
     """Transition."""
 
-    def __init__(self, num_input_features: int, num_output_features: int):
+    def __init__(
+        self, num_input_features: int, num_output_features: int, _type: str = "same"
+    ):
         """__init__.
 
         :param num_input_features:
@@ -160,6 +162,19 @@ class Transition(nn.Module):
             bias=False,
         )
         self.relu = nn.PReLU()
+        self.rescale = None
+
+        if _type == "down":
+            self.rescale = nn.AvgPool2d(kernel_size=2, stride=2)
+
+        elif _type == "up":
+            self.rescale = nn.Sequential(
+                nn.BatchNorm2d(num_output_features),
+                nn.PReLU(),
+                nn.ConvTranspose2d(
+                    num_output_features, num_output_features, kernel_size=2, stride=2
+                ),
+            )
 
     def forward(self, x: Tensor) -> Tensor:
         """forward.
@@ -169,8 +184,10 @@ class Transition(nn.Module):
         :rtype: Tensor
         """
         out = self.bn(x)
-        out = self.conv(out)
         out = self.relu(out)
+        out = self.conv(out)
+        if self.rescale is not None:
+            out = self.rescale(out)
         return out
 
 
@@ -231,11 +248,11 @@ class Enhancer(nn.Module):
 
         # dense blocks
         dense_blocks = []
-        for kernel_size, padding, num_layers in (
-            (7, 3, 12),
-            (5, 2, 8),
-            (3, 1, 2),
-            (3, 1, 2),
+        for kernel_size, padding, num_layers, transition in (
+            (7, 3, 12, "down"),
+            (5, 2, 8, "same"),
+            (3, 1, 2, "up"),
+            (3, 1, 2, "same"),
         ):
             dense_blocks.append(
                 DenseBlock(
@@ -252,6 +269,7 @@ class Enhancer(nn.Module):
                 Transition(
                     num_features,
                     num_features // 2,
+                    _type=transition,
                 )
             )
             num_features = num_features // 2
