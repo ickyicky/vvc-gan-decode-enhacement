@@ -192,4 +192,4 @@ class GANModule(pl.LightningModule):
             },
         ]
 
-        return [opt_g, opt_d], lr_schedulers
+        return [opt_g, opt_d], None

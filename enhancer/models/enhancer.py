@@ -249,10 +249,10 @@ class Enhancer(nn.Module):
         # dense blocks
         dense_blocks = []
         for kernel_size, padding, num_layers, transition in (
-            (7, 3, 12, "down"),
-            (5, 2, 8, "same"),
-            (3, 1, 2, "up"),
-            (3, 1, 2, "same"),
+            (7, 3, 1, "same"),
+            (5, 2, 1, "same"),
+            (3, 1, 1, "same"),
+            (3, 1, 1, "same"),
         ):
             dense_blocks.append(
                 DenseBlock(
