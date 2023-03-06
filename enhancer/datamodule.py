@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import DataLoader, random_split, Subset
 from torchvision import transforms
 import pytorch_lightning as pl
+from typing import Optional
 
 from .dataset import VVCDataset
 
@@ -59,6 +60,8 @@ class VVCDataModule(pl.LightningDataModule):
         self,
         chunk_folder: str,
         orig_chunk_folder: str,
+        test_chunk_folder: Optional[str] = None,
+        test_orig_chunk_folder: Optional[str] = None,
         chunk_height: int = 132,
         chunk_width: int = 132,
         batch_size: int = 8,
@@ -88,6 +91,9 @@ class VVCDataModule(pl.LightningDataModule):
 
         self.chunk_folder = chunk_folder
         self.orig_chunk_folder = orig_chunk_folder
+
+        self.test_chunk_folder = test_chunk_folder
+        self.test_orig_chunk_folder = test_orig_chunk_folder
 
         self.chunk_height = chunk_height
         self.chunk_width = chunk_width
@@ -122,8 +128,23 @@ class VVCDataModule(pl.LightningDataModule):
         test_items = int(self.test_percentage / 100 * len(dataset))
 
         self.dataset_val = Subset(dataset, indices[:val_items])
-        self.dataset_test = Subset(dataset, indices[val_items:test_items])
-        self.dataset_train = Subset(dataset, indices[val_items + test_items :])
+
+        if (
+            self.test_chunk_folder is not None
+            and self.test_orig_chunk_folder is not None
+        ):
+            self.dataset_test = VVCDataset(
+                chunk_folder=self.test_chunk_folder,
+                orig_chunk_folder=self.test_orig_chunk_folder,
+                chunk_transform=self.chunk_transform(),
+                metadata_transform=self.metadata_transform(),
+                chunk_height=self.chunk_height,
+                chunk_width=self.chunk_width,
+            )
+            self.dataset_train = Subset(dataset, indices[val_items:])
+        else:
+            self.dataset_test = Subset(dataset, indices[val_items:test_items])
+            self.dataset_train = Subset(dataset, indices[val_items + test_items :])
 
     def train_dataloader(self):
         """train_dataloader."""

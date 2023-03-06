@@ -28,6 +28,20 @@ if __name__ == "__main__":
         help="directory with original chunks",
     )
     parser.add_argument(
+        "--test-chunks-dir",
+        "-x",
+        metavar="FILE",
+        default="test_chunks",
+        help="directory with chunks",
+    )
+    parser.add_argument(
+        "--test-orig-chunks-dir",
+        "-y",
+        metavar="FILE",
+        default="test_orig_chunks",
+        help="directory with original chunks",
+    )
+    parser.add_argument(
         "--epochs",
         "-e",
         type=int,
@@ -49,6 +63,8 @@ if __name__ == "__main__":
     data_module = VVCDataModule(
         args.chunks_dir,
         args.orig_chunks_dir,
+        args.test_chunks_dir,
+        args.test_orig_chunks_dir,
     )
 
     if args.checkpoint:
