@@ -68,8 +68,8 @@ class VVCDataModule(pl.LightningDataModule):
         n_step: int = 1000,
         val_percentage: int = 5,
         test_percentage: int = 5,
-        mean: Tuple[float, float, float] = (),
-        std: Tuple[float, float, float] = (),
+        mean: Tuple[float, float, float] = (0.4037, 0.3721, 0.3697),
+        std: Tuple[float, float, float] = (0.2841, 0.2851, 0.2928),
     ):
         """__init__.
 
@@ -197,15 +197,6 @@ class VVCDataModule(pl.LightningDataModule):
         """chunk_transform."""
         transform = transforms.Compose(
             [
-                transforms.Resize(self.chunk_height),
-                transforms.RandomCrop(self.chunk_height),
-                transforms.RandomHorizontalFlip(),
-                transforms.ColorJitter(
-                    brightness=0.3,
-                    contrast=0.1,
-                    saturation=0.3,
-                    hue=0.0,
-                ),
                 transforms.ToTensor(),
                 transforms.Normalize(self.mean, self.std),
             ]
