@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import DataLoader, random_split, Subset
 from torchvision import transforms
 import pytorch_lightning as pl
-from typing import Optional
+from typing import Optional, Tuple
 
 from .dataset import VVCDataset
 
@@ -68,6 +68,8 @@ class VVCDataModule(pl.LightningDataModule):
         n_step: int = 1000,
         val_percentage: int = 5,
         test_percentage: int = 5,
+        mean: Tuple[float, float, float] = (),
+        std: Tuple[float, float, float] = (),
     ):
         """__init__.
 
@@ -108,6 +110,9 @@ class VVCDataModule(pl.LightningDataModule):
         self.dataset_val = None
         self.dataset_test = None
         self.dataset_train = None
+
+        self.mean = mean
+        self.std = std
 
     def setup(self, stage=None):
         """setup.
@@ -190,11 +195,22 @@ class VVCDataModule(pl.LightningDataModule):
 
     def chunk_transform(self):
         """chunk_transform."""
-        return transforms.Compose(
+        transform = transforms.Compose(
             [
+                transforms.Resize(self.chunk_height),
+                transforms.RandomCrop(self.chunk_height),
+                transforms.RandomHorizontalFlip(),
+                transforms.ColorJitter(
+                    brightness=0.3,
+                    contrast=0.1,
+                    saturation=0.3,
+                    hue=0.0,
+                ),
                 transforms.ToTensor(),
+                transforms.Normalize(self.mean, self.std),
             ]
         )
+        return transform
 
     def metadata_transform(self):
         """metadata_transform."""

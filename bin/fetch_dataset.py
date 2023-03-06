@@ -19,7 +19,6 @@ SELECTED_VIDEOS = [
     "TelevisionClip/720P/TelevisionClip_720P-4edb.mkv",
     "TelevisionClip/480P/TelevisionClip_480P-415c.mkv",
     "HowTo/360P/HowTo_360P-127f.mkv",
-    "HowTo/720P/HowTo_720P-7c38.mkv",
     "HowTo/1080P/HowTo_1080P-13aa.mkv",
     "Sports/1080P/Sports_1080P-3a3b.mkv",
     "Sports/720P/Sports_720P-4b69.mkv",
