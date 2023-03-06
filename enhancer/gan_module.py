@@ -2,6 +2,7 @@ import torch
 import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
+from torchmetrics import PeakSignalNoiseRatio
 from typing import Tuple
 
 
@@ -28,11 +29,16 @@ class GANModule(pl.LightningModule):
 
         self.num_samples = num_samples
 
+        self._psnr = PeakSignalNoiseRatio(data_range=1.0)
+
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
 
     def adversarial_loss(self, y_hat, y):
         return F.binary_cross_entropy(y_hat, y)
+
+    def psnr(self, y_hat, y):
+        return self._psnr(y_hat, y)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata = batch
@@ -51,7 +57,11 @@ class GANModule(pl.LightningModule):
             # adversarial loss is binary cross-entropy
             preds = self.discriminator(enhanced)
             g_loss = self.adversarial_loss(preds, valid)
+            g_psnr = self.psnr(preds, valid)
+
             self.log("g_loss", g_loss, prog_bar=True)
+            self.log("g_psnr", g_psnr, prog_bar=True)
+
             if batch_idx % 20 == 0:
                 self.logger.experiment.log(
                     {
@@ -120,7 +130,10 @@ class GANModule(pl.LightningModule):
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
         g_loss = self.adversarial_loss(preds, valid)
+        g_psnr = self.psnr(preds, valid)
+
         self.log("val_g_loss", g_loss, prog_bar=True)
+        self.log("val_g_psnr", g_psnr, prog_bar=True)
         if batch_idx % 20 == 0:
             self.logger.experiment.log(
                 {
