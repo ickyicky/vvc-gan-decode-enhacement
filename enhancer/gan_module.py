@@ -205,4 +205,4 @@ class GANModule(pl.LightningModule):
             },
         ]
 
-        return [opt_g, opt_d], None
+        return [opt_g, opt_d], []
