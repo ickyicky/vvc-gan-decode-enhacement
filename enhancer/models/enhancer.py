@@ -222,10 +222,15 @@ class Enhancer(nn.Module):
         self,
         nc: int = 3,
         size: int = 132,
-        init_num_features: int = 128,
-        growth_rate: int = 8,
         metadata_size: int = 6,
         metadata_features: int = 6,
+        structure=(
+            (9, 4, 1, 128, "same"),
+            (7, 3, 1, 64, "same"),
+            (5, 2, 1, 32, "same"),
+            (3, 1, 1, 16, "same"),
+            (3, 1, 1, 8, "same"),
+        ),
     ) -> None:
         super().__init__()
 
@@ -235,25 +240,11 @@ class Enhancer(nn.Module):
             size=size,
         )
 
-        # input encoding
-        self.input_encoder = nn.Conv2d(
-            nc + metadata_features,
-            init_num_features,
-            kernel_size=9,
-            stride=1,
-            padding=4,
-            bias=False,
-        )
-        num_features = init_num_features
+        num_features = nc + metadata_features
 
         # dense blocks
         dense_blocks = []
-        for kernel_size, padding, num_layers, transition in (
-            (7, 3, 1, "same"),
-            (5, 2, 1, "same"),
-            (3, 1, 1, "same"),
-            (3, 1, 1, "same"),
-        ):
+        for kernel_size, padding, num_layers, growth_rate, transition in structure:
             dense_blocks.append(
                 DenseBlock(
                     num_input_features=num_features,
@@ -295,7 +286,6 @@ class Enhancer(nn.Module):
     def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
         encoded_metadata = self.metadata_encoder(metadata)
         data = torch.cat((input_, encoded_metadata), 1)
-        data = self.input_encoder(data)
         data = self.dense_blocks(data)
         return self.output_block(data)
 
