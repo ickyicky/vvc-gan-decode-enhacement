@@ -38,25 +38,28 @@ def calculate_mean_std(
     )
     loader = DataLoader(
         ConcatDataset([dataset, test_dataset]),
-        batch_size=64,
+        batch_size=16 * 1024,
         num_workers=0,
         shuffle=False,
     )
 
     channels_sum, channels_squared_sum, num_batches = 0, 0, 0
+    num_batches = len(loader)
 
-    for data in tqdm(
+    for batch in tqdm(
         loader,
         desc="calculating mean std..",
         leave=True,
         position=0,
     ):
-        channels_sum += torch.mean(data, dim=[0, 2, 3])
-        channels_squared_sum += torch.mean(data**2, dim=[0, 2, 3])
-        num_batches += 1
+        _, orig_chunks, _ = batch
+        channels_sum += torch.mean(orig_chunks, dim=[0, 2, 3]) / num_batches
+        channels_squared_sum += (
+            torch.mean(orig_chunks**2, dim=[0, 2, 3]) / num_batches
+        )
 
-    mean = channels_sum / num_batches
-    std = (channels_squared_sum / num_batches - mean**2) ** 0.5
+    mean = channels_sum
+    std = (channels_squared_sum - mean**2) ** 0.5
     return (mean, std)
 
 
@@ -105,4 +108,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.calculate_mean_std:
-        calculate_mean_std(args.chunks_dir, args.orig_chunks_dir)
+        print(
+            calculate_mean_std(
+                args.chunks_dir,
+                args.orig_chunks_dir,
+                args.test_chunks_dir,
+                args.test_orig_chunks_dir,
+            )
+        )
