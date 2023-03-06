@@ -37,8 +37,8 @@ class GANModule(pl.LightningModule):
     def adversarial_loss(self, y_hat, y):
         return F.binary_cross_entropy(y_hat, y)
 
-    def psnr(self, y_hat, y):
-        return self._psnr(y_hat, y)
+    def psnr(self, y_hat, y, x):
+        return self._psnr(x, y) - self._psnr(y_hat, y)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata = batch
@@ -57,7 +57,7 @@ class GANModule(pl.LightningModule):
             # adversarial loss is binary cross-entropy
             preds = self.discriminator(enhanced)
             g_loss = self.adversarial_loss(preds, valid)
-            g_psnr = self.psnr(preds, valid)
+            g_psnr = self.psnr(enhanced, orig_chunks, chunks)
 
             self.log("g_loss", g_loss, prog_bar=True)
             self.log("g_psnr", g_psnr, prog_bar=True)
@@ -130,7 +130,7 @@ class GANModule(pl.LightningModule):
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
         g_loss = self.adversarial_loss(preds, valid)
-        g_psnr = self.psnr(preds, valid)
+        g_psnr = self.psnr(enhanced, orig_chunks, chunks)
 
         self.log("val_g_loss", g_loss, prog_bar=True)
         self.log("val_g_psnr", g_psnr, prog_bar=True)
