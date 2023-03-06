@@ -10,6 +10,8 @@ done
 undone
 chunks
 orig_chunks
+test_chunks
+test_orig_chunks
 metadata
 vvc/
 vvenc
