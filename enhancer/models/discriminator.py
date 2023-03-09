@@ -23,6 +23,7 @@ class Discriminator(nn.Module):
         size: int = 132,
     ):
         super().__init__()
+        self.features = None
 
         blocks = [DiscriminatorBlock(nc, size)]
 
@@ -47,8 +48,16 @@ class Discriminator(nn.Module):
             *parts,
         )
 
+        self.model[-4][-1].register_forward_hook(self.save_features())
+
     def forward(self, x):
         return self.model(x)
+
+    def save_features(self):
+        def hook(model, input, output):
+            self.features = output.detach()
+
+        return hook
 
 
 if __name__ == "__main__":
@@ -57,3 +66,4 @@ if __name__ == "__main__":
     g = Discriminator()
 
     summary(g, (3, 132, 132), device="cpu")
+    print(g.features)

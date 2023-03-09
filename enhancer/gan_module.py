@@ -2,8 +2,8 @@ import torch
 import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
-from torchmetrics import PeakSignalNoiseRatio
 from typing import Tuple
+from .crosslid import compute_crosslid
 
 
 class GANModule(pl.LightningModule):
@@ -11,8 +11,8 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 2e-4,
-        discriminator_lr: float = 2e-4,
+        enhancer_lr: float = 1e-4,
+        discriminator_lr: float = 1e-4,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
     ):
@@ -29,16 +29,15 @@ class GANModule(pl.LightningModule):
 
         self.num_samples = num_samples
 
-        self._psnr = PeakSignalNoiseRatio(data_range=1.0)
-
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
 
     def adversarial_loss(self, y_hat, y):
         return F.binary_cross_entropy(y_hat, y)
 
-    def psnr(self, y_hat, y, x):
-        return self._psnr(x, y) - self._psnr(y_hat, y)
+    def crosslid(self, y_hat_features, y_features):
+        b_size = y_features.shape[0]
+        return compute_crosslid(y_hat_features, y_features, b_size, b_size)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata = batch
@@ -57,10 +56,8 @@ class GANModule(pl.LightningModule):
             # adversarial loss is binary cross-entropy
             preds = self.discriminator(enhanced)
             g_loss = self.adversarial_loss(preds, valid)
-            g_psnr = self.psnr(enhanced, orig_chunks, chunks)
 
             self.log("g_loss", g_loss, prog_bar=True)
-            self.log("g_psnr", g_psnr, prog_bar=True)
 
             if batch_idx % 20 == 0:
                 self.logger.experiment.log(
@@ -129,11 +126,11 @@ class GANModule(pl.LightningModule):
 
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
+        y_hat_features = self.discriminator.features.copy()
+
         g_loss = self.adversarial_loss(preds, valid)
-        g_psnr = self.psnr(enhanced, orig_chunks, chunks)
 
         self.log("val_g_loss", g_loss, prog_bar=True)
-        self.log("val_g_psnr", g_psnr, prog_bar=True)
         if batch_idx % 20 == 0:
             self.logger.experiment.log(
                 {
@@ -165,6 +162,7 @@ class GANModule(pl.LightningModule):
             )
 
         real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
+        y_features = self.discriminator.features.copy()
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -175,6 +173,10 @@ class GANModule(pl.LightningModule):
         # discriminator loss is the average of these
         d_loss = (real_loss + fake_loss) / 2
         self.log("val_d_loss", d_loss, prog_bar=True)
+
+        # calculate crosslid
+        crosslid = self.crosslid(y_hat_features, y_features)
+        self.log("val_crosslid", crosslid, prog_bar=True)
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
