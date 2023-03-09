@@ -11,8 +11,8 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 1e-4,
-        discriminator_lr: float = 1e-4,
+        enhancer_lr: float = 3e-4,
+        discriminator_lr: float = 1e-5,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
     ):
@@ -37,7 +37,7 @@ class GANModule(pl.LightningModule):
 
     def crosslid(self, y_hat_features, y_features):
         b_size = y_features.shape[0]
-        return compute_crosslid(y_hat_features, y_features, b_size, b_size)
+        return compute_crosslid(y_hat_features.cpu(), y_features.cpu(), b_size, b_size)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata = batch
@@ -116,6 +116,10 @@ class GANModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         chunks, orig_chunks, metadata = batch
 
+        # create holder for features
+        target = {}
+        hook = self.discriminator.register_hook(target)
+
         # ENHANCE!
         enhanced = self(chunks, metadata)
 
@@ -126,7 +130,7 @@ class GANModule(pl.LightningModule):
 
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
-        y_hat_features = self.discriminator.features.copy()
+        y_hat_features = target["features"]
 
         g_loss = self.adversarial_loss(preds, valid)
 
@@ -162,7 +166,7 @@ class GANModule(pl.LightningModule):
             )
 
         real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
-        y_features = self.discriminator.features.copy()
+        y_features = target["features"]
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -177,6 +181,7 @@ class GANModule(pl.LightningModule):
         # calculate crosslid
         crosslid = self.crosslid(y_hat_features, y_features)
         self.log("val_crosslid", crosslid, prog_bar=True)
+        hook.remove()
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
