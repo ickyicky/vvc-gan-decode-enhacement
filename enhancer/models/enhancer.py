@@ -16,7 +16,6 @@ class DenseLayer(nn.Module):
         stride: int = 1,
         padding: int = 1,
         bn_size: Optional[int] = None,
-        is_up: bool = False,
     ) -> None:
         """__init__.
 
@@ -39,13 +38,11 @@ class DenseLayer(nn.Module):
         parts = []
         num_features = num_input_features
 
-        conv = nn.ConvTranspose2d if is_up else nn.Conv2d
-
         if bn_size is not None:
             parts = [
                 nn.BatchNorm2d(num_input_features),
                 nn.PReLU(),
-                conv(
+                nn.Conv2d(
                     num_features,
                     bn_size * growth_rate,
                     kernel_size=1,
@@ -59,7 +56,7 @@ class DenseLayer(nn.Module):
             *parts,
             nn.BatchNorm2d(num_features),
             nn.PReLU(),
-            conv(
+            nn.Conv2d(
                 num_features,
                 growth_rate,
                 kernel_size=kernel_size,
@@ -92,7 +89,6 @@ class DenseBlock(nn.Module):
         stride: int = 1,
         padding: int = 1,
         bn_size: Optional[int] = None,
-        is_up: bool = False,
     ) -> None:
         """__init__.
 
@@ -126,7 +122,6 @@ class DenseBlock(nn.Module):
                     stride=stride,
                     padding=padding,
                     bn_size=bn_size,
-                    is_up=is_up,
                 )
             )
             num_features += growth_rate
@@ -212,7 +207,7 @@ class EncoderBlock(nn.Sequential):
         num_output_features: int,
         kernel_size: int,
         stride: int,
-        padding: int,
+        is_last: bool = False,
     ) -> None:
         super().__init__()
         self.conv = nn.ConvTranspose2d(
@@ -220,10 +215,10 @@ class EncoderBlock(nn.Sequential):
             num_output_features,
             kernel_size=kernel_size,
             stride=stride,
-            padding=padding,
         )
-        self.norm = nn.BatchNorm2d(num_output_features)
-        self.relu = nn.ReLU(inplace=True)
+        if is_last is False:
+            self.norm = nn.BatchNorm2d(num_output_features)
+            self.relu = nn.ReLU(inplace=True)
 
 
 class MetadataEncoder(nn.Module):
@@ -235,31 +230,37 @@ class MetadataEncoder(nn.Module):
     def __init__(
         self,
         metadata_size: int = 6,
-        metadata_features: int = 6,
+        metadata_features: int = 64,
         size: int = 132,
+        num_of_blocks: int = 2,
     ) -> None:
         super().__init__()
 
         self.size = size
-        num_features = metadata_features
+        num_features = metadata_size
+
+        self.num_of_blocks = num_of_blocks
 
         model = []
-        model.append(
-            nn.Sequential(
-                nn.ConvTranspose2d(
+
+        for i in range(1, self.num_of_blocks + 1):
+            output_features = metadata_features // (2 ** (self.num_of_blocks - i))
+            model.append(
+                EncoderBlock(
                     num_features,
-                    metadata_features,
-                    kernel_size=4,
+                    output_features,
+                    kernel_size=2,
                     stride=2,
-                    padding=1,
-                ),
-                nn.Tanh(),
+                )
             )
-        )
+            num_features = output_features
+
         self.model = nn.Sequential(*model)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.nn.functional.interpolate(x, size=self.size // 2)
+        x = torch.nn.functional.interpolate(
+            x, size=self.size // (2**self.num_of_blocks)
+        )
         return self.model(x)
 
 
@@ -273,11 +274,12 @@ class Enhancer(nn.Module):
         self,
         nc: int = 3,
         size: int = 132,
+        initial_features: int = 64,
         metadata_size: int = 6,
-        metadata_features: int = 6,
+        metadata_features: int = 64,
         structure=(
-            (9, 4, None, 1, 128, "down"),
-            (7, 3, None, 2, 64, "down"),
+            (9, 4, None, 2, 32, "down"),
+            (7, 3, None, 2, 32, "down"),
             (5, 2, None, 2, 32, "same"),
             (3, 1, None, 2, 16, "same"),
             (3, 1, 2, 2, 8, "up"),
@@ -292,7 +294,14 @@ class Enhancer(nn.Module):
             size=size,
         )
 
-        num_features = nc + metadata_features
+        self.input_encoder = nn.Conv2d(
+            nc,
+            initial_features,
+            kernel_size=9,
+            padding=4,
+        )
+
+        num_features = initial_features + metadata_features
 
         # dense blocks
         dense_blocks = []
@@ -311,7 +320,6 @@ class Enhancer(nn.Module):
                     kernel_size=kernel_size,
                     padding=padding,
                     num_layers=num_layers,
-                    is_up=transition == "up",
                 )
             )
             num_features += growth_rate * num_layers
@@ -346,7 +354,8 @@ class Enhancer(nn.Module):
 
     def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
         encoded_metadata = self.metadata_encoder(metadata)
-        data = torch.cat((input_, encoded_metadata), 1)
+        encoded_input = self.input_encoder(input_)
+        data = torch.cat((encoded_input, encoded_metadata), 1)
         data = self.dense_blocks(data)
         return self.output_block(data)
 
