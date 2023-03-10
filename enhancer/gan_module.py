@@ -11,7 +11,7 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 5e-4,
+        enhancer_lr: float = 1e-4,
         discriminator_lr: float = 1e-5,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
