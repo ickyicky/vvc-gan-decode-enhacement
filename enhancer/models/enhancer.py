@@ -148,6 +148,8 @@ class Transition(nn.Module):
         num_input_features: int,
         num_output_features: int,
         _type: str = "same",
+        kernel_size: int = 4,
+        padding: int = 1,
         stride: int = 2,
     ):
         """__init__.
@@ -178,7 +180,8 @@ class Transition(nn.Module):
                 nn.ConvTranspose2d(
                     num_output_features,
                     num_output_features,
-                    kernel_size=2,
+                    kernel_size=kernel_size,
+                    padding=padding,
                     stride=stride,
                 ),
             )
@@ -278,10 +281,15 @@ class Enhancer(nn.Module):
         metadata_size: int = 6,
         metadata_features: int = 64,
         structure=(
-            (7, 3, None, 1, 64, "down"),
-            (5, 2, None, 1, 64, "down"),
-            (3, 1, 1, 2, 32, "up"),
-            (3, 1, 1, 2, 32, "up"),
+            (7, 3, 0, 0, 0, 1, 64, "down"),  # 66
+            (5, 2, 0, 0, 0, 1, 64, "down"),  # 33
+            (3, 1, 0, 0, 0, 1, 64, "down"),  # 16
+            (3, 1, 0, 0, 0, 1, 64, "down"),  # 8
+            (3, 1, 4, 2, 1, 2, 32, "up"),  # 16
+            (3, 1, 4, 2, 1, 2, 32, "up"),  # 32
+            (3, 1, 2, 1, 0, 2, 32, "up"),  # 33
+            (3, 1, 4, 2, 1, 2, 32, "up"),  # 66
+            (3, 1, 4, 2, 1, 2, 32, "up"),  # 132
         ),
     ) -> None:
         super().__init__()
@@ -306,7 +314,9 @@ class Enhancer(nn.Module):
         for (
             kernel_size,
             padding,
-            stride,
+            tr_kernel_size,
+            tr_stride,
+            tr_padding,
             num_layers,
             growth_rate,
             transition,
@@ -327,7 +337,9 @@ class Enhancer(nn.Module):
                     num_features,
                     num_features // 2,
                     _type=transition,
-                    stride=stride,
+                    kernel_size=tr_kernel_size,
+                    stride=tr_stride,
+                    padding=tr_padding,
                 )
             )
             num_features = num_features // 2
