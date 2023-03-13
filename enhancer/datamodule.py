@@ -198,7 +198,7 @@ class VVCDataModule(pl.LightningDataModule):
         transform = transforms.Compose(
             [
                 transforms.ToTensor(),
-                transforms.Normalize(self.mean, self.std),
+                # transforms.Normalize(self.mean, self.std),
             ]
         )
         return transform
