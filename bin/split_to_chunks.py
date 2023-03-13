@@ -119,19 +119,11 @@ class Splitter:
 
             for frame in range(metadata.frames):
                 for h_part in range(horizontal_chunks):
-                    h_pos = min(
-                        (
-                            h_part * (self.chunk_width - self.chunk_border),
-                            metadata.width - self.chunk_width,
-                        )
-                    )
+                    h_pos = h_part * (self.chunk_width - self.chunk_border * 2)
+
                     for v_part in range(vertical_chunks):
-                        v_pos = min(
-                            (
-                                v_part * (self.chunk_height - self.chunk_border),
-                                metadata.height - self.chunk_height,
-                            )
-                        )
+                        v_pos = v_part * (self.chunk_height - self.chunk_border * 2)
+
                         chunk = Chunk(
                             metadata=metadata,
                             frame=frame,
@@ -206,13 +198,33 @@ class Splitter:
         for frame_num in tqdm(range(metadata.frames)):
             frame = buff[frame_num]
             frame = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
+            frame = cv2.copyMakeBorder(
+                frame,
+                self.chunk_border,
+                self.chunk_border,
+                self.chunk_border,
+                self.chunk_border,
+                cv2.BORDER_CONSTANT,
+                value=0.0,
+            )
 
             orig_frame = orig_buff[frame_num]
             orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_YUV2RGB_I420)
+            orig_frame = cv2.copyMakeBorder(
+                orig_frame,
+                self.chunk_border,
+                self.chunk_border
+                + ((-metadata.height) % (self.chunk_height - 2 * self.chunk_border)),
+                self.chunk_border,
+                self.chunk_border
+                + ((-metadata.width) % (self.chunk_height - 2 * self.chunk_border)),
+                cv2.BORDER_CONSTANT,
+                value=0.0,
+            )
 
             for chunk in (c for c in chunks if c.frame == frame_num):
-                start_h = chunk.position[0]
-                start_w = chunk.position[1]
+                start_h = chunk.position[0] + self.chunk_border
+                start_w = chunk.position[1] + self.chunk_border
 
                 chunk_h = self.chunk_height
                 chunk_w = self.chunk_width
