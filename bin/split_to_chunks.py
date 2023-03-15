@@ -56,7 +56,7 @@ class Splitter:
     ORIGINAL_FORMAT: str = "{file}.yuv"
     FILE_FORMAT: str = "yuv"
 
-    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}/{position[0]}_{position[1]}.png"
+    CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}/{position[0]}_{position[1]}_{corner}.png"
     ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.png"
 
     def __init__(
@@ -113,8 +113,12 @@ class Splitter:
             metadata = self.load_metadata_for(file)
             intra_frames = self.load_intra_frames(metadata)
 
-            horizontal_chunks = math.ceil(metadata.width / self.chunk_width)
-            vertical_chunks = math.ceil(metadata.height / self.chunk_height)
+            horizontal_chunks = math.ceil(
+                metadata.width / (self.chunk_width - 2 * self.chunk_border)
+            )
+            vertical_chunks = math.ceil(
+                metadata.height / (self.chunk_height - 2 * self.chunk_border)
+            )
 
             video_chunks = []
 
@@ -128,13 +132,13 @@ class Splitter:
                         corner = []
 
                         if h == 0:
-                            corner.append("u")
-                        if h == horizontal_chunks - 1:
-                            corner.append("b")
-                        if v == 0:
                             corner.append("l")
-                        if v == vertical_chunks - 1:
+                        if h == horizontal_chunks - 1:
                             corner.append("r")
+                        if v == 0:
+                            corner.append("u")
+                        if v == vertical_chunks - 1:
+                            corner.append("b")
 
                         chunk = Chunk(
                             metadata=metadata,
@@ -236,8 +240,8 @@ class Splitter:
             )
 
             for chunk in (c for c in chunks if c.frame == frame_num):
-                start_h = chunk.position[0] + self.chunk_border
-                start_w = chunk.position[1] + self.chunk_border
+                start_h = chunk.position[0]
+                start_w = chunk.position[1]
 
                 chunk_h = self.chunk_height
                 chunk_w = self.chunk_width

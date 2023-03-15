@@ -343,8 +343,7 @@ class Enhancer(nn.Module):
 
         # output part
         self.output_block = nn.Sequential(
-            nn.Conv2d(num_features, nc, kernel_size=5, stride=1, padding=2),
-            nn.Tanh(),
+            nn.Conv2d(num_features, nc, kernel_size=3, stride=1, padding=1),
         )
 
         # Official init from torch repo.

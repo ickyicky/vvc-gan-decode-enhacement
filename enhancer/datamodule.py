@@ -66,8 +66,6 @@ class VVCDataModule(pl.LightningDataModule):
         chunk_width: int = 132,
         batch_size: int = 8,
         n_step: int = 1000,
-        val_percentage: int = 5,
-        test_percentage: int = 5,
         mean: Tuple[float, float, float] = (0.4037, 0.3721, 0.3697),
         std: Tuple[float, float, float] = (0.2841, 0.2851, 0.2928),
     ):
@@ -83,10 +81,6 @@ class VVCDataModule(pl.LightningDataModule):
         :type chunk_width: int
         :param batch_size:
         :type batch_size: int
-        :param val_percentage:
-        :type val_percentage: int
-        :param test_percentage:
-        :type test_percentage: int
         """
         super().__init__()
         self.batch_size = batch_size
@@ -100,12 +94,9 @@ class VVCDataModule(pl.LightningDataModule):
         self.chunk_height = chunk_height
         self.chunk_width = chunk_width
 
-        self.val_percentage = val_percentage
-        self.test_percentage = test_percentage
-
         self.n_step = n_step
-        self.n_step_valid = int(n_step / 100 * self.val_percentage)
-        self.n_step_test = int(n_step / 100 * self.test_percentage)
+        self.n_step_valid = n_step
+        self.n_step_test = n_step
 
         self.dataset_val = None
         self.dataset_test = None
@@ -119,7 +110,7 @@ class VVCDataModule(pl.LightningDataModule):
 
         :param stage:
         """
-        dataset = VVCDataset(
+        self.dataset_train = VVCDataset(
             chunk_folder=self.chunk_folder,
             orig_chunk_folder=self.orig_chunk_folder,
             chunk_transform=self.chunk_transform(),
@@ -128,28 +119,23 @@ class VVCDataModule(pl.LightningDataModule):
             chunk_width=self.chunk_width,
         )
 
-        indices = torch.randperm(len(dataset)).tolist()
-        val_items = int(self.val_percentage / 100 * len(dataset))
-        test_items = int(self.test_percentage / 100 * len(dataset))
+        self.dataset_test = VVCDataset(
+            chunk_folder=self.test_chunk_folder,
+            orig_chunk_folder=self.test_orig_chunk_folder,
+            chunk_transform=self.chunk_transform(),
+            metadata_transform=self.metadata_transform(),
+            chunk_height=self.chunk_height,
+            chunk_width=self.chunk_width,
+        )
 
-        self.dataset_val = Subset(dataset, indices[:val_items])
-
-        if (
-            self.test_chunk_folder is not None
-            and self.test_orig_chunk_folder is not None
-        ):
-            self.dataset_test = VVCDataset(
-                chunk_folder=self.test_chunk_folder,
-                orig_chunk_folder=self.test_orig_chunk_folder,
-                chunk_transform=self.chunk_transform(),
-                metadata_transform=self.metadata_transform(),
-                chunk_height=self.chunk_height,
-                chunk_width=self.chunk_width,
-            )
-            self.dataset_train = Subset(dataset, indices[val_items:])
-        else:
-            self.dataset_test = Subset(dataset, indices[val_items:test_items])
-            self.dataset_train = Subset(dataset, indices[val_items + test_items :])
+        self.dataset_val = VVCDataset(
+            chunk_folder=self.test_chunk_folder,
+            orig_chunk_folder=self.test_orig_chunk_folder,
+            chunk_transform=self.chunk_transform(),
+            metadata_transform=self.metadata_transform(),
+            chunk_height=self.chunk_height,
+            chunk_width=self.chunk_width,
+        )
 
     def train_dataloader(self):
         """train_dataloader."""
