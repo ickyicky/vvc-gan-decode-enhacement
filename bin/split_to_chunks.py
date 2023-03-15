@@ -33,6 +33,7 @@ class Chunk:
     metadata: Any
     frame: int
     is_intra: bool
+    corner: str
 
 
 class Splitter:
@@ -118,24 +119,33 @@ class Splitter:
             video_chunks = []
 
             for frame in range(metadata.frames):
-                for h_part in range(horizontal_chunks):
+                for h, h_part in enumerate(range(horizontal_chunks)):
                     h_pos = h_part * (self.chunk_width - self.chunk_border * 2)
 
-                    for v_part in range(vertical_chunks):
+                    for v, v_part in enumerate(range(vertical_chunks)):
                         v_pos = v_part * (self.chunk_height - self.chunk_border * 2)
+
+                        corner = []
+
+                        if h == 0:
+                            corner.append("u")
+                        if h == horizontal_chunks - 1:
+                            corner.append("b")
+                        if v == 0:
+                            corner.append("l")
+                        if v == vertical_chunks - 1:
+                            corner.append("r")
 
                         chunk = Chunk(
                             metadata=metadata,
                             frame=frame,
                             position=(v_pos, h_pos),
                             is_intra=frame in intra_frames,
+                            corner="".join(corner),
                         )
                         video_chunks.append(chunk)
 
             self.save_chunks(video_chunks)
-            # done.append(file)
-            # with open(self.done_cache, "w"):
-            #    f.write("\n".join(done))
             print(f"DONE {file}")
 
     def load_metadata_for(self, file: str) -> Metadata:
