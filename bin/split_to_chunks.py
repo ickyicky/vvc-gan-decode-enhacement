@@ -133,9 +133,10 @@ class Splitter:
                         video_chunks.append(chunk)
 
             self.save_chunks(video_chunks)
-            done.append(file)
-            with open(self.done_cache, "w"):
-                f.write("\n".join(done))
+            # done.append(file)
+            # with open(self.done_cache, "w"):
+            #    f.write("\n".join(done))
+            print(f"DONE {file}")
 
     def load_metadata_for(self, file: str) -> Metadata:
         """
@@ -201,9 +202,11 @@ class Splitter:
             frame = cv2.copyMakeBorder(
                 frame,
                 self.chunk_border,
+                2 * self.chunk_border
+                + ((-metadata.height) % (self.chunk_height - 2 * self.chunk_border)),
                 self.chunk_border,
-                self.chunk_border,
-                self.chunk_border,
+                2 * self.chunk_border
+                + ((-metadata.width) % (self.chunk_height - 2 * self.chunk_border)),
                 cv2.BORDER_CONSTANT,
                 value=0.0,
             )
@@ -213,10 +216,10 @@ class Splitter:
             orig_frame = cv2.copyMakeBorder(
                 orig_frame,
                 self.chunk_border,
-                self.chunk_border
+                2 * self.chunk_border
                 + ((-metadata.height) % (self.chunk_height - 2 * self.chunk_border)),
                 self.chunk_border,
-                self.chunk_border
+                2 * self.chunk_border
                 + ((-metadata.width) % (self.chunk_height - 2 * self.chunk_border)),
                 cv2.BORDER_CONSTANT,
                 value=0.0,

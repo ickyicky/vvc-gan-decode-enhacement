@@ -281,9 +281,9 @@ class Enhancer(nn.Module):
         metadata_size: int = 6,
         metadata_features: int = 64,
         structure=(
-            (7, 3, 0, 0, 0, 1, 64, "same"),  # 66
-            (5, 2, 0, 0, 0, 1, 64, "same"),  # 33
-            (3, 1, 4, 2, 1, 1, 32, "same"),  # 132
+            (7, 3, 0, 0, 0, 1, 64, "same"),
+            (5, 2, 0, 0, 0, 1, 64, "same"),
+            (3, 1, 4, 2, 1, 1, 32, "same"),
         ),
     ) -> None:
         super().__init__()
@@ -326,17 +326,18 @@ class Enhancer(nn.Module):
             )
             num_features += growth_rate * num_layers
 
-            dense_blocks.append(
-                Transition(
-                    num_features,
-                    num_features // 2,
-                    _type=transition,
-                    kernel_size=tr_kernel_size,
-                    stride=tr_stride,
-                    padding=tr_padding,
+            if transition is not None:
+                dense_blocks.append(
+                    Transition(
+                        num_features,
+                        num_features // 2,
+                        _type=transition,
+                        kernel_size=tr_kernel_size,
+                        stride=tr_stride,
+                        padding=tr_padding,
+                    )
                 )
-            )
-            num_features = num_features // 2
+                num_features = num_features // 2
 
         self.dense_blocks = nn.Sequential(*dense_blocks)
 
