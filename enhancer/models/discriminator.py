@@ -24,10 +24,10 @@ class Discriminator(nn.Module):
     ):
         super().__init__()
 
-        blocks = [DiscriminatorBlock(nc, size)]
+        blocks = [DiscriminatorBlock(nc, 128)]
 
         cur_size = size // 2
-        cur_features = size
+        cur_features = 128
 
         while True:
             blocks.append(DiscriminatorBlock(cur_features, cur_features * 2))
@@ -40,7 +40,6 @@ class Discriminator(nn.Module):
             *blocks,
             nn.Conv2d(cur_features, 1, kernel_size=4, stride=1, padding=0, bias=False),
             nn.Flatten(),
-            nn.Sigmoid(),
         ]
 
         self.model = nn.Sequential(
@@ -48,10 +47,11 @@ class Discriminator(nn.Module):
         )
 
     def forward(self, x):
-        return self.model(x)
+        result = self.model(x)
+        return result
 
     def register_hook(self, target):
-        return self.model[-4][-1].register_forward_hook(self.save_features(target))
+        return self.model[-3][-1].register_forward_hook(self.save_features(target))
 
     def save_features(self, target):
         def hook(model, input, output):
@@ -65,5 +65,7 @@ if __name__ == "__main__":
 
     g = Discriminator()
 
+    target = {}
+    g.register_hook(target)
     summary(g, (3, 132, 132), device="cpu")
-    print(g.features)
+    print(target["features"].shape)
