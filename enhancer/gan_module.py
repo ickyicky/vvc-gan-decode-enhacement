@@ -183,6 +183,83 @@ class GANModule(pl.LightningModule):
         self.log("val_crosslid", crosslid, prog_bar=True)
         hook.remove()
 
+    def test_step(self, batch, batch_idx):
+        # TODO log everything
+        chunks, orig_chunks, metadata = batch
+
+        # create holder for features
+        target = {}
+        hook = self.discriminator.register_hook(target)
+
+        # ENHANCE!
+        enhanced = self(chunks, metadata)
+
+        # ground truth result (ie: all fake)
+        # put on GPU because we created this tensor inside training_loop
+        valid = torch.ones(chunks.size(0), 1)
+        valid = valid.type_as(chunks)
+
+        # adversarial loss is binary cross-entropy
+        preds = self.discriminator(enhanced)
+        y_hat_features = target["features"]
+
+        g_loss = self.adversarial_loss(preds, valid)
+
+        self.log("test_g_loss", g_loss, prog_bar=True)
+        if batch_idx % 20 == 0:
+            self.logger.experiment.log(
+                {
+                    "test_enhanced": [
+                        wandb.Image(
+                            x,
+                            caption=f"Pred: {pred.item()}",
+                        )
+                        for x, pred in zip(
+                            enhanced[: self.num_samples],
+                            preds.cpu()[: self.num_samples],
+                        )
+                    ],
+                    "test_uncompressed": [
+                        wandb.Image(
+                            x,
+                            caption=f"uncompressed image {i}",
+                        )
+                        for i, x in enumerate(orig_chunks[: self.num_samples])
+                    ],
+                    "test_decompressed": [
+                        wandb.Image(
+                            x,
+                            caption=f"decompressed image {i}",
+                        )
+                        for i, x in enumerate(chunks[: self.num_samples])
+                    ],
+                }
+            )
+
+        real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
+        y_features = target["features"]
+
+        # how well can it label as fake?
+        fake = torch.zeros(orig_chunks.size(0), 1)
+        fake = fake.type_as(orig_chunks)
+
+        fake_loss = self.adversarial_loss(preds, fake)
+
+        # discriminator loss is the average of these
+        d_loss = (real_loss + fake_loss) / 2
+        self.log("test_d_loss", d_loss, prog_bar=True)
+
+        # calculate crosslid, this time as well for decompressed images
+        crosslid = self.crosslid(y_hat_features, y_features)
+        self.log("test_enhanced_crosslid", crosslid, prog_bar=True)
+
+        self.adversarial_loss(self.discriminator(chunks), fake)
+        orig_features = target["features"]
+        orig_crosslid = self.crosslid(orig_features, y_features)
+        self.log("test_orig_crosslid", orig_crosslid, prog_bar=True)
+
+        hook.remove()
+
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
             self.enhancer.parameters(), lr=self.enhancer_lr, betas=self.betas

@@ -160,10 +160,7 @@ class VVCDataModule(pl.LightningDataModule):
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
-        return LoaderWrapper(
-            data_loader,
-            self.n_step_test,
-        )
+        return data_loader
 
     def val_dataloader(self):
         """val_dataloader."""

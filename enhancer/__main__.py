@@ -57,6 +57,12 @@ if __name__ == "__main__":
         default=None,
         help="checkpoint to load",
     )
+    parser.add_argument(
+        "--test",
+        "-t",
+        action="store_true",
+        help="number of epochs",
+    )
 
     args = parser.parse_args()
 
@@ -94,4 +100,7 @@ if __name__ == "__main__":
         ],
         logger=wandb_logger,
     )
-    trainer.fit(module, data_module)
+    if args.test:
+        trainer.test(module, data_module)
+    else:
+        trainer.fit(module, data_module)
