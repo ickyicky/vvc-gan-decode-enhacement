@@ -12,7 +12,7 @@ class GANModule(pl.LightningModule):
         enhancer,
         discriminator,
         enhancer_lr: float = 1e-4,
-        discriminator_lr: float = 5e-6,
+        discriminator_lr: float = 1e-5,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
     ):
@@ -191,21 +191,13 @@ class GANModule(pl.LightningModule):
             self.discriminator.parameters(), lr=self.discriminator_lr, betas=self.betas
         )
 
+        # example scheduler to use, didn't use it finally
         lr_schedulers = [
             {
                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                     opt_d,
-                    milestones=[10000, 20000, 50000, 100000],
-                    gamma=0.5,
-                ),
-                "interval": "step",
-                "frequency": 1,
-            },
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_g,
-                    milestones=[10000, 20000, 50000, 100000],
-                    gamma=0.5,
+                    milestones=[10],
+                    gamma=0.1,
                 ),
                 "interval": "step",
                 "frequency": 1,
