@@ -155,7 +155,7 @@ class VVCDataModule(pl.LightningDataModule):
         """test_dataloader."""
         data_loader = DataLoader(
             self.dataset_test,
-            batch_size=self.batch_size,
+            batch_size=self.batch_size * 12,
             shuffle=False,
             pin_memory=True,
             num_workers=os.cpu_count(),
