@@ -3,7 +3,7 @@ import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from torchvision.transforms.functional import crop
-from ignite.mtetrics import PSNR
+from torchmetrics import PeakSignalNoiseRatio
 from typing import Tuple
 from .crosslid import compute_crosslid
 
@@ -31,25 +31,15 @@ class GANModule(pl.LightningModule):
 
         self.num_samples = num_samples
 
-        self.psnr = PSNR(output_transform=self.psnr_transform)
+        self.psnr = PeakSignalNoiseRatio()
 
     def psnr_transform(self, output):
-        y_pred, y = output
-        return (
-            crop(
-                y_pred,
-                2,
-                2,
-                128,
-                128,
-            ),
-            crop(
-                y,
-                2,
-                2,
-                128,
-                128,
-            ),
+        return crop(
+            y_pred,
+            2,
+            2,
+            128,
+            128,
         )
 
     def forward(self, chunks, metadata):
@@ -284,9 +274,13 @@ class GANModule(pl.LightningModule):
         hook.remove()
 
         # calculate psnr
-        enhanced_psnr = self.psnr(enhanced, orig_chunks)
+        enhanced_psnr = self.psnr(
+            self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
+        )
         self.log("test_enhancer_psnr", enhanced_psnr, prog_bar=True)
-        orig_psnr = self.psnr(chunks, orig_chunks)
+        orig_psnr = self.psnr(
+            self.psnr_transform(chunks), self.psnr_transform(orig_chunks)
+        )
         self.log("test_orig_psnr", orig_psnr, prog_bar=True)
 
     def configure_optimizers(self):
