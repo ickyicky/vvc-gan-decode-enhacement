@@ -2,6 +2,8 @@ import torch
 import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
+from torchvision.transforms.functional import crop
+from ignite.mtetrics import PSNR
 from typing import Tuple
 from .crosslid import compute_crosslid
 
@@ -17,7 +19,7 @@ class GANModule(pl.LightningModule):
         num_samples: int = 6,
     ):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore="psnr")
 
         self.enhancer = enhancer
         self.discriminator = discriminator
@@ -28,6 +30,27 @@ class GANModule(pl.LightningModule):
         self.betas = betas
 
         self.num_samples = num_samples
+
+        self.psnr = PSNR(output_transform=self.psnr_transform)
+
+    def psnr_transform(self, output):
+        y_pred, y = output
+        return (
+            crop(
+                y_pred,
+                2,
+                2,
+                128,
+                128,
+            ),
+            crop(
+                y,
+                2,
+                2,
+                128,
+                128,
+            ),
+        )
 
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
@@ -259,6 +282,12 @@ class GANModule(pl.LightningModule):
         self.log("test_orig_crosslid", orig_crosslid, prog_bar=True)
 
         hook.remove()
+
+        # calculate psnr
+        enhanced_psnr = self.psnr(enhanced, orig_chunks)
+        self.log("test_enhancer_psnr", enhanced_psnr, prog_bar=True)
+        orig_psnr = self.psnr(chunks, orig_chunks)
+        self.log("test_orig_psnr", orig_psnr, prog_bar=True)
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
