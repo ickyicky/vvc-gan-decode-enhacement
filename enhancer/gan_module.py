@@ -6,6 +6,7 @@ from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from typing import Tuple
 from .crosslid import compute_crosslid
+from .csv_logger import log
 
 
 class GANModule(pl.LightningModule):
@@ -145,7 +146,6 @@ class GANModule(pl.LightningModule):
 
         g_loss = self.adversarial_loss(preds, valid)
 
-        self.log("val_g_loss", g_loss, prog_bar=True)
         if batch_idx % 20 == 0:
             self.logger.experiment.log(
                 {
@@ -187,21 +187,27 @@ class GANModule(pl.LightningModule):
 
         # discriminator loss is the average of these
         d_loss = (real_loss + fake_loss) / 2
-        self.log("val_d_loss", d_loss, prog_bar=True)
 
         # calculate crosslid
         crosslid = self.crosslid(y_hat_features, y_features)
-        self.log("val_crosslid", crosslid, prog_bar=True)
         hook.remove()
 
         # calculate psnr
         enhanced_psnr = psnr(
             self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
         )
-        self.log("valid_psnr", enhanced_psnr, prog_bar=True)
+
+        # log everything
+        self.log_dict(
+            {
+                "val_g_loss": g_loss,
+                "val_d_loss": d_loss,
+                "val_crosslid": crosslid,
+                "val_psnr": enhanced_psnr,
+            },
+        )
 
     def test_step(self, batch, batch_idx):
-        # TODO log everything
         chunks, orig_chunks, metadata = batch
 
         # create holder for features
@@ -222,7 +228,6 @@ class GANModule(pl.LightningModule):
 
         g_loss = self.adversarial_loss(preds, valid)
 
-        self.log("test_g_loss", g_loss, prog_bar=True)
         if batch_idx % 20 == 0:
             self.logger.experiment.log(
                 {
@@ -264,16 +269,13 @@ class GANModule(pl.LightningModule):
 
         # discriminator loss is the average of these
         d_loss = (real_loss + fake_loss) / 2
-        self.log("test_d_loss", d_loss, prog_bar=True)
 
         # calculate crosslid, this time as well for decompressed images
         crosslid = self.crosslid(y_hat_features, y_features)
-        self.log("test_enhanced_crosslid", crosslid, prog_bar=True)
 
         self.adversarial_loss(self.discriminator(chunks), fake)
         orig_features = target["features"]
         orig_crosslid = self.crosslid(orig_features, y_features)
-        self.log("test_orig_crosslid", orig_crosslid, prog_bar=True)
 
         hook.remove()
 
@@ -281,9 +283,29 @@ class GANModule(pl.LightningModule):
         enhanced_psnr = psnr(
             self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
         )
-        self.log("test_enhanced_psnr", enhanced_psnr, prog_bar=True)
         orig_psnr = psnr(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
-        self.log("test_orig_psnr", orig_psnr, prog_bar=True)
+
+        # log everything
+        self.log_dict(
+            {
+                "test_g_loss": g_loss,
+                "test_d_loss": d_loss,
+                "test_crosslid": crosslid,
+                "test_ref_crosslid": orig_crosslid,
+                "test_psnr": enhanced_psnr,
+                "test_ref_psnr": orig_psnr,
+                "test_metadata": metadata,
+            },
+            test=True,
+        )
+
+    def log_dict(self, data, test=False):
+        # log to csv on test
+        if test is True:
+            log(data)
+            data.pop("test_metadata")
+
+        super().log_dict(data)
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(

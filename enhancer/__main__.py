@@ -3,6 +3,7 @@ from .models.enhancer import Enhancer
 from .datamodule import VVCDataModule
 from .gan_module import GANModule
 from .utils import weights_init
+from .csv_logger import init
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -101,6 +102,7 @@ if __name__ == "__main__":
         logger=wandb_logger,
     )
     if args.test:
+        init(args.checkpoint)
         trainer.test(module, data_module)
     else:
         trainer.fit(module, data_module)
