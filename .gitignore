@@ -3,6 +3,7 @@
 test
 data
 lightning_logs
+logs
 encoded
 decoded
 tasks
