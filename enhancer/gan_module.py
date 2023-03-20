@@ -194,6 +194,12 @@ class GANModule(pl.LightningModule):
         self.log("val_crosslid", crosslid, prog_bar=True)
         hook.remove()
 
+        # calculate psnr
+        enhanced_psnr = psnr(
+            self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
+        )
+        self.log("valid_psnr", enhanced_psnr, prog_bar=True)
+
     def test_step(self, batch, batch_idx):
         # TODO log everything
         chunks, orig_chunks, metadata = batch
@@ -275,7 +281,7 @@ class GANModule(pl.LightningModule):
         enhanced_psnr = psnr(
             self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
         )
-        self.log("test_enhancer_psnr", enhanced_psnr, prog_bar=True)
+        self.log("test_enhanced_psnr", enhanced_psnr, prog_bar=True)
         orig_psnr = psnr(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
         self.log("test_orig_psnr", orig_psnr, prog_bar=True)
 
