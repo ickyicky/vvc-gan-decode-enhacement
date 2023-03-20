@@ -38,7 +38,7 @@ def compute_crosslid_batch(X_ref, X, k, batch_size):
     return lid_batch
 
 
-def compute_crosslid(X, Y, k, batch_size):
+def compute_crosslid(X, Y, k, batch_size, without_mean=False):
     """compute_crosslid.
     :param X:
     :param Y:
@@ -48,13 +48,21 @@ def compute_crosslid(X, Y, k, batch_size):
     X = X.reshape(X.shape[0], -1)
     Y = Y.reshape(Y.shape[0], -1)
     n_batches = int(np.ceil(Y.shape[0] / batch_size))
-    lid_vals = []
-    for i in range(n_batches):
-        start = i * batch_size
-        end = np.min([(i + 1) * batch_size, Y.shape[0]])
-        Y_batch = Y[start:end]
-        lid_batch = compute_crosslid_batch(X, Y_batch, k, batch_size)
-        lid_vals.extend(lid_batch)
+
+    if n_batches == 1:
+        lid_vals = compute_crosslid_batch(X, Y, k, batch_size)
+    else:
+        lid_vals = []
+        for i in range(n_batches):
+            start = i * batch_size
+            end = np.min([(i + 1) * batch_size, Y.shape[0]])
+            Y_batch = Y[start:end]
+            lid_batch = compute_crosslid_batch(X, Y_batch, k, batch_size)
+            lid_vals.extend(lid_batch)
+
+    if without_mean:
+        return np.array(lid_vals)
+
     return np.mean(np.array(lid_vals))
 
 

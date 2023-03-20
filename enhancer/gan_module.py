@@ -2,6 +2,7 @@ import torch
 import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
+import numpy as np
 from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from typing import Tuple
@@ -47,9 +48,15 @@ class GANModule(pl.LightningModule):
     def adversarial_loss(self, y_hat, y):
         return F.mse_loss(y_hat, y)
 
-    def crosslid(self, y_hat_features, y_features):
+    def crosslid(self, y_hat_features, y_features, without_mean=False):
         b_size = y_features.shape[0]
-        return compute_crosslid(y_hat_features.cpu(), y_features.cpu(), b_size, b_size)
+        return compute_crosslid(
+            y_hat_features.cpu(),
+            y_features.cpu(),
+            b_size,
+            b_size,
+            without_mean=without_mean,
+        )
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata = batch
@@ -271,41 +278,46 @@ class GANModule(pl.LightningModule):
         d_loss = (real_loss + fake_loss) / 2
 
         # calculate crosslid, this time as well for decompressed images
-        crosslid = self.crosslid(y_hat_features, y_features)
+        crosslid = self.crosslid(y_hat_features, y_features, True)
 
         self.adversarial_loss(self.discriminator(chunks), fake)
         orig_features = target["features"]
-        orig_crosslid = self.crosslid(orig_features, y_features)
-
+        orig_crosslid = self.crosslid(orig_features, y_features, True)
         hook.remove()
 
         # calculate psnr
-        enhanced_psnr = psnr(
-            self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
-        )
-        orig_psnr = psnr(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
+        enhancer_psnrs = [
+            psnr(self.psnr_transform(enh), self.psnr_transform(orig_chunk))
+            for enh, orig_chunk in zip(enhanced.split(1), orig_chunks.split(1))
+        ]
+        orig_psnrs = [
+            psnr(self.psnr_transform(chunk), self.psnr_transform(orig_chunk))
+            for chunk, orig_chunk in zip(chunks.split(1), orig_chunks.split(1))
+        ]
 
         # log everything
         self.log_dict(
             {
                 "test_g_loss": g_loss,
                 "test_d_loss": d_loss,
+                "test_crosslid": np.mean(crosslid),
+                "test_ref_crosslid": np.mean(orig_crosslid),
+                "test_psnr": torch.mean(torch.tensor(enhancer_psnrs)),
+                "test_ref_psnr": torch.mean(torch.tensor(orig_psnrs)),
+            },
+        )
+        self.log_test(
+            {
                 "test_crosslid": crosslid,
                 "test_ref_crosslid": orig_crosslid,
-                "test_psnr": enhanced_psnr,
-                "test_ref_psnr": orig_psnr,
+                "test_psnr": enhancer_psnrs,
+                "test_ref_psnr": orig_psnrs,
                 "test_metadata": metadata,
             },
-            test=True,
         )
 
-    def log_dict(self, data, test=False):
-        # log to csv on test
-        if test is True:
-            log(data)
-            data.pop("test_metadata")
-
-        super().log_dict(data)
+    def log_test(self, data):
+        log(data)
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(

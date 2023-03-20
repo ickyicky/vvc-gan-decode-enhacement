@@ -10,14 +10,17 @@ class CsvLogger:
         experiment: str,
         logs_folder: str = "logs",
     ):
+        self.logs_folder = logs_folder
         self.fname = os.path.join(
             logs_folder, os.path.split(experiment)[-1].replace(".ckpt", ".csv")
         )
 
     def initialize(self):
+        if not os.path.exists(self.logs_folder):
+            os.mkdir(self.logs_folder)
+
         with open(self.fname, "w") as f:
             f.write(self.header())
-            f.write("\n")
 
     def header(self):
         return ";".join(
@@ -37,28 +40,38 @@ class CsvLogger:
 
     def entries(self, data):
         entries = []
-        for i in range(len(data["test_metadata"])):
+
+        metadata = data["test_metadata"].cpu()
+        ref_psnr = data["test_ref_psnr"]
+        psnr = data["test_psnr"]
+        ref_crosslid = data["test_ref_crosslid"]
+        crosslid = data["test_crosslid"]
+
+        for i in range(len(metadata)):
+            mt = metadata[i].view(-1)
             entries.append(
                 ";".join(
                     [
-                        "RA" if data["test_metadata"][i][0] == 1 else "AI",
-                        data["test_metadata"][i][1] * 64,
-                        data["test_metadata"][i][2],
-                        data["test_metadata"][i][3],
-                        data["test_metadata"][i][4],
-                        data["test_metadata"][i][5],
-                        data["test_ref_psnr"][i],
-                        data["test_psnr"][i],
-                        data["test_ref_crosslid"][i],
-                        data["test_crosslid"][i],
+                        "RA" if mt[0] == 1 else "AI",
+                        str(int(mt[1] * 64)),
+                        str(int(mt[2])),
+                        str(int(mt[3])),
+                        str(int(mt[4])),
+                        str(int(mt[5])),
+                        str(float(ref_psnr[i].cpu())),
+                        str(float(psnr[i].cpu())),
+                        str(float(ref_crosslid[i])),
+                        str(float(crosslid[i])),
                     ],
                 )
             )
+
         return entries
 
     def log(self, data):
         with open(self.fname, "a") as f:
-            f.writelines(self.entries(data))
+            f.write("\n")
+            f.write("\n".join(self.entries(data)))
 
 
 def init(experiment: str, logs_folder: str = "logs"):
