@@ -197,12 +197,20 @@ class GANModule(pl.LightningModule):
 
         # calculate crosslid
         crosslid = self.crosslid(y_hat_features, y_features)
+
+        self.adversarial_loss(self.discriminator(chunks), fake)
+        orig_features = target["features"]
+        orig_crosslid = self.crosslid(orig_features, y_features, True)
         hook.remove()
 
         # calculate psnr
         enhanced_psnr = psnr(
             self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
         )
+        orig_psnrs = [
+            psnr(self.psnr_transform(chunk), self.psnr_transform(orig_chunk))
+            for chunk, orig_chunk in zip(chunks.split(1), orig_chunks.split(1))
+        ]
 
         # log everything
         self.log_dict(
@@ -210,7 +218,9 @@ class GANModule(pl.LightningModule):
                 "val_g_loss": g_loss,
                 "val_d_loss": d_loss,
                 "val_crosslid": crosslid,
+                "val_ref_crosslid": orig_crosslid,
                 "val_psnr": enhanced_psnr,
+                "val_ref_psnr": orig_psnrs,
             },
         )
 
@@ -332,7 +342,7 @@ class GANModule(pl.LightningModule):
             {
                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                     opt_d,
-                    milestones=[100*1000],
+                    milestones=[100 * 1000],
                     gamma=0.1,
                 ),
                 "interval": "step",
@@ -341,7 +351,7 @@ class GANModule(pl.LightningModule):
             {
                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                     opt_g,
-                    milestones=[100*1000],
+                    milestones=[100 * 1000],
                     gamma=0.1,
                 ),
                 "interval": "step",

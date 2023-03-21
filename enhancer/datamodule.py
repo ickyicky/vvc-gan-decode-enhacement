@@ -65,9 +65,10 @@ class VVCDataModule(pl.LightningDataModule):
         chunk_height: int = 132,
         chunk_width: int = 132,
         batch_size: int = 8,
+        val_batch_size: int = 96,
+        test_batch_size: int = 96,
         n_step: int = 1000,
-        mean: Tuple[float, float, float] = (0.4037, 0.3721, 0.3697),
-        std: Tuple[float, float, float] = (0.2841, 0.2851, 0.2928),
+        n_step_valid: int = 100,
     ):
         """__init__.
 
@@ -84,6 +85,8 @@ class VVCDataModule(pl.LightningDataModule):
         """
         super().__init__()
         self.batch_size = batch_size
+        self.val_batch_size = val_batch_size
+        self.test_batch_size = test_batch_size
 
         self.chunk_folder = chunk_folder
         self.orig_chunk_folder = orig_chunk_folder
@@ -95,15 +98,11 @@ class VVCDataModule(pl.LightningDataModule):
         self.chunk_width = chunk_width
 
         self.n_step = n_step
-        self.n_step_valid = n_step
-        self.n_step_test = n_step
+        self.n_step_valid = n_step_valid
 
         self.dataset_val = None
         self.dataset_test = None
         self.dataset_train = None
-
-        self.mean = mean
-        self.std = std
 
     def setup(self, stage=None):
         """setup.
@@ -155,7 +154,7 @@ class VVCDataModule(pl.LightningDataModule):
         """test_dataloader."""
         data_loader = DataLoader(
             self.dataset_test,
-            batch_size=self.batch_size * 12,
+            batch_size=self.test_batch_size,
             shuffle=False,
             pin_memory=True,
             num_workers=os.cpu_count(),
@@ -166,7 +165,7 @@ class VVCDataModule(pl.LightningDataModule):
         """val_dataloader."""
         data_loader = DataLoader(
             self.dataset_val,
-            batch_size=self.batch_size,
+            batch_size=self.val_batch_size,
             shuffle=False,
             pin_memory=True,
             num_workers=os.cpu_count(),
@@ -181,7 +180,6 @@ class VVCDataModule(pl.LightningDataModule):
         transform = transforms.Compose(
             [
                 transforms.ToTensor(),
-                # transforms.Normalize(self.mean, self.std),
             ]
         )
         return transform
