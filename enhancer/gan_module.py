@@ -332,7 +332,16 @@ class GANModule(pl.LightningModule):
             {
                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                     opt_d,
-                    milestones=[10],
+                    milestones=[100*1000],
+                    gamma=0.1,
+                ),
+                "interval": "step",
+                "frequency": 1,
+            },
+            {
+                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                    opt_g,
+                    milestones=[100*1000],
                     gamma=0.1,
                 ),
                 "interval": "step",
@@ -340,4 +349,4 @@ class GANModule(pl.LightningModule):
             },
         ]
 
-        return [opt_g, opt_d], []
+        return [opt_g, opt_d], lr_schedulers
