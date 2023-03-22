@@ -240,31 +240,10 @@ class MetadataEncoder(nn.Module):
         super().__init__()
 
         self.size = size
-        num_features = metadata_size
-
-        self.num_of_blocks = num_of_blocks
-
-        model = []
-
-        for i in range(1, self.num_of_blocks + 1):
-            output_features = metadata_features // (2 ** (self.num_of_blocks - i))
-            model.append(
-                EncoderBlock(
-                    num_features,
-                    output_features,
-                    kernel_size=2,
-                    stride=2,
-                )
-            )
-            num_features = output_features
-
-        self.model = nn.Sequential(*model)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = torch.nn.functional.interpolate(
-            x, size=self.size // (2**self.num_of_blocks)
-        )
-        return self.model(x)
+        x = torch.nn.functional.interpolate(x, size=self.size)
+        return x
 
 
 class Enhancer(nn.Module):
@@ -277,13 +256,18 @@ class Enhancer(nn.Module):
         self,
         nc: int = 3,
         size: int = 132,
-        initial_features: int = 128,
+        initial_features: int = 64,
         metadata_size: int = 6,
-        metadata_features: int = 64,
+        metadata_features: int = 6,
         structure=(
-            (7, 3, 0, 0, 0, 1, 64, "same"),
-            (5, 2, 0, 0, 0, 1, 64, "same"),
-            (3, 1, 4, 2, 1, 1, 32, "same"),
+            (3, 1, 0, 0, 0, 1, 64, "same"),
+            (3, 1, 0, 0, 0, 1, 64, "same"),
+            (3, 1, 0, 0, 0, 1, 64, "same"),
+            (3, 1, 0, 0, 0, 1, 64, "same"),
+            (3, 1, 0, 0, 0, 1, 64, "same"),
+            (3, 1, 0, 0, 0, 1, 32, "same"),
+            (3, 1, 0, 0, 0, 1, 32, "same"),
+            (3, 1, 0, 0, 0, 1, 16, "same"),
         ),
     ) -> None:
         super().__init__()
@@ -297,8 +281,8 @@ class Enhancer(nn.Module):
         self.input_encoder = nn.Conv2d(
             nc + metadata_features,
             initial_features,
-            kernel_size=9,
-            padding=4,
+            kernel_size=5,
+            padding=2,
         )
 
         num_features = initial_features
