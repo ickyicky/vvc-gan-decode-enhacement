@@ -36,10 +36,10 @@ class GANModule(pl.LightningModule):
     def psnr_transform(self, output):
         return crop(
             output,
-            2,
-            2,
-            128,
-            128,
+            4,
+            4,
+            124,
+            124,
         )
 
     def forward(self, chunks, metadata):
@@ -200,17 +200,14 @@ class GANModule(pl.LightningModule):
 
         self.adversarial_loss(self.discriminator(chunks), fake)
         orig_features = target["features"]
-        orig_crosslid = self.crosslid(orig_features, y_features, True)
+        orig_crosslid = self.crosslid(orig_features, y_features)
         hook.remove()
 
         # calculate psnr
         enhanced_psnr = psnr(
             self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
         )
-        orig_psnrs = [
-            psnr(self.psnr_transform(chunk), self.psnr_transform(orig_chunk))
-            for chunk, orig_chunk in zip(chunks.split(1), orig_chunks.split(1))
-        ]
+        orig_psnr = psnr(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
 
         # log everything
         self.log_dict(
@@ -220,7 +217,7 @@ class GANModule(pl.LightningModule):
                 "val_crosslid": crosslid,
                 "val_ref_crosslid": orig_crosslid,
                 "val_psnr": enhanced_psnr,
-                "val_ref_psnr": orig_psnrs,
+                "val_ref_psnr": orig_psnr,
             },
         )
 
@@ -342,19 +339,19 @@ class GANModule(pl.LightningModule):
             {
                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                     opt_d,
-                    milestones=[100 * 1000],
+                    milestones=[10, 100],
                     gamma=0.1,
                 ),
-                "interval": "step",
+                "interval": "epoch",
                 "frequency": 1,
             },
             {
                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                     opt_g,
-                    milestones=[100 * 1000],
+                    milestones=[10, 100],
                     gamma=0.1,
                 ),
-                "interval": "step",
+                "interval": "epoch",
                 "frequency": 1,
             },
         ]
