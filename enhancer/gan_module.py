@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
+from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
 from .crosslid import compute_crosslid
 from .csv_logger import log
@@ -15,7 +16,7 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 1e-4,
+        enhancer_lr: float = 2e-4,
         discriminator_lr: float = 1e-5,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
@@ -34,6 +35,7 @@ class GANModule(pl.LightningModule):
         self.num_samples = num_samples
 
     def psnr_transform(self, output):
+        # crop removes area that is gradiented
         return crop(
             output,
             4,
@@ -203,11 +205,15 @@ class GANModule(pl.LightningModule):
         orig_crosslid = self.crosslid(orig_features, y_features)
         hook.remove()
 
-        # calculate psnr
+        # calculate psnr and ssim
         enhanced_psnr = psnr(
             self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
         )
         orig_psnr = psnr(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
+        enhanced_ssim = ssim(
+            self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
+        )
+        orig_ssim = ssim(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
 
         # log everything
         self.log_dict(
@@ -218,6 +224,8 @@ class GANModule(pl.LightningModule):
                 "val_ref_crosslid": orig_crosslid,
                 "val_psnr": enhanced_psnr,
                 "val_ref_psnr": orig_psnr,
+                "val_ssim": enhanced_ssim,
+                "val_ref_ssim": orig_ssim,
             },
         )
 
@@ -292,13 +300,21 @@ class GANModule(pl.LightningModule):
         orig_crosslid = self.crosslid(orig_features, y_features, True)
         hook.remove()
 
-        # calculate psnr
+        # calculate psnr and ssim
         enhancer_psnrs = [
             psnr(self.psnr_transform(enh), self.psnr_transform(orig_chunk))
             for enh, orig_chunk in zip(enhanced.split(1), orig_chunks.split(1))
         ]
         orig_psnrs = [
             psnr(self.psnr_transform(chunk), self.psnr_transform(orig_chunk))
+            for chunk, orig_chunk in zip(chunks.split(1), orig_chunks.split(1))
+        ]
+        enhancer_ssims = [
+            ssim(self.psnr_transform(enh), self.psnr_transform(orig_chunk))
+            for enh, orig_chunk in zip(enhanced.split(1), orig_chunks.split(1))
+        ]
+        orig_ssims = [
+            ssim(self.psnr_transform(chunk), self.psnr_transform(orig_chunk))
             for chunk, orig_chunk in zip(chunks.split(1), orig_chunks.split(1))
         ]
 
@@ -311,6 +327,8 @@ class GANModule(pl.LightningModule):
                 "test_ref_crosslid": np.mean(orig_crosslid),
                 "test_psnr": torch.mean(torch.tensor(enhancer_psnrs)),
                 "test_ref_psnr": torch.mean(torch.tensor(orig_psnrs)),
+                "test_ssim": torch.mean(torch.tensor(enhancer_ssims)),
+                "test_ref_ssim": torch.mean(torch.tensor(orig_ssims)),
             },
         )
         self.log_test(
@@ -319,6 +337,8 @@ class GANModule(pl.LightningModule):
                 "test_ref_crosslid": orig_crosslid,
                 "test_psnr": enhancer_psnrs,
                 "test_ref_psnr": orig_psnrs,
+                "test_ssim": enhancer_ssims,
+                "test_ref_ssim": orig_ssims,
                 "test_metadata": metadata,
             },
         )
@@ -334,26 +354,25 @@ class GANModule(pl.LightningModule):
             self.discriminator.parameters(), lr=self.discriminator_lr, betas=self.betas
         )
 
-        # example scheduler to use, didn't use it finally
-        lr_schedulers = [
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_d,
-                    milestones=[100],
-                    gamma=0.1,
-                ),
-                "interval": "epoch",
-                "frequency": 1,
-            },
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_g,
-                    milestones=[100],
-                    gamma=0.1,
-                ),
-                "interval": "epoch",
-                "frequency": 1,
-            },
-        ]
+        lr_schedulers = []
+        #             {
+        #                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+        #                     opt_d,
+        #                     milestones=[30, 60, 90],
+        #                     gamma=0.1,
+        #                 ),
+        #                 "interval": "epoch",
+        #                 "frequency": 1,
+        #             },
+        #             {
+        #                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+        #                     opt_g,
+        #                     milestones=[30, 60, 90],
+        #                     gamma=0.1,
+        #                 ),
+        #                 "interval": "epoch",
+        #                 "frequency": 1,
+        #             },
+        #         ]
 
         return [opt_g, opt_d], lr_schedulers

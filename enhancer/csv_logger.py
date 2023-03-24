@@ -33,6 +33,8 @@ class CsvLogger:
                 "intra",
                 "ref_psnr",
                 "psnr",
+                "ref_ssim",
+                "ssim",
                 "ref_crosslid",
                 "crosslid",
             ]
@@ -44,6 +46,8 @@ class CsvLogger:
         metadata = data["test_metadata"].cpu()
         ref_psnr = data["test_ref_psnr"]
         psnr = data["test_psnr"]
+        ref_ssim = data["test_ref_ssim"]
+        ssim = data["test_ssim"]
         ref_crosslid = data["test_ref_crosslid"]
         crosslid = data["test_crosslid"]
 
@@ -60,6 +64,8 @@ class CsvLogger:
                         str(int(mt[5])),
                         str(float(ref_psnr[i].cpu())),
                         str(float(psnr[i].cpu())),
+                        str(float(ref_ssim[i].cpu())),
+                        str(float(ssim[i].cpu())),
                         str(float(ref_crosslid[i])),
                         str(float(crosslid[i])),
                     ],
