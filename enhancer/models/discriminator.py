@@ -1,13 +1,13 @@
 import torch.nn as nn
 
 
-def DiscriminatorBlock(in_features, out_features, padding=1):
+def DiscriminatorBlock(in_features, out_features, kernel_size=4, stride=4, padding=1):
     return nn.Sequential(
         nn.Conv2d(
             in_features,
             out_features,
-            kernel_size=4,
-            stride=2,
+            kernel_size=kernel_size,
+            stride=stride,
             padding=padding,
             bias=False,
         ),
@@ -24,21 +24,31 @@ class Discriminator(nn.Module):
     ):
         super().__init__()
 
-        blocks = [DiscriminatorBlock(nc, 128)]
+        blocks = [DiscriminatorBlock(nc, 128, 4, 2, 1)]
 
         cur_size = size // 2
         cur_features = 128
 
         while True:
-            blocks.append(DiscriminatorBlock(cur_features, cur_features * 2))
+            blocks.append(
+                DiscriminatorBlock(
+                    cur_features,
+                    cur_features * 2,
+                    kernel_size=4,
+                    stride=2 if cur_size > 16 else 4,
+                    padding=1 if cur_size > 16 else 0,
+                ),
+            )
             cur_features *= 2
-            cur_size = cur_size // 2
-            if cur_size == 4:
+            cur_size = cur_size // 2 if cur_size > 16 else cur_size // 4
+            if cur_size == 1:
                 break
 
         parts = [
             *blocks,
-            nn.Conv2d(cur_features, 1, kernel_size=4, stride=1, padding=0, bias=False),
+            nn.Conv2d(
+                cur_features, 1, kernel_size=1, stride=1, padding=0, bias=False
+            ),  # practically linear layer
             nn.Flatten(),
         ]
 
