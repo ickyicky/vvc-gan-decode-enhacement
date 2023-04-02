@@ -263,6 +263,7 @@ class Enhancer(nn.Module):
             (7, 3, 0, 0, 0, 1, 48, "same"),
             (5, 2, 0, 0, 0, 1, 32, "same"),
             (3, 1, 0, 0, 0, 1, 32, "same"),
+            (3, 1, 0, 0, 0, 2, 16, "same"),
             (3, 1, 0, 0, 0, 1, 16, "same"),
         ),
     ) -> None:
@@ -281,7 +282,7 @@ class Enhancer(nn.Module):
             padding=4,
         )
 
-        num_features = initial_features + nc + metadata_features
+        num_features = initial_features
 
         # dense blocks
         dense_blocks = []
@@ -339,8 +340,7 @@ class Enhancer(nn.Module):
     def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
         encoded_metadata = self.metadata_encoder(metadata)
         data = torch.cat((input_, encoded_metadata), 1)
-        encoded_data = self.input_encoder(data)
-        data = torch.cat((data, encoded_data), 1)
+        data = self.input_encoder(data)
         data = self.dense_blocks(data)
         return self.output_block(data)
 

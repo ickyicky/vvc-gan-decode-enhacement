@@ -80,7 +80,7 @@ class GANModule(pl.LightningModule):
 
             self.log("g_loss", g_loss, prog_bar=True)
 
-            if batch_idx % 20 == 0:
+            if batch_idx % 100 == 0:
                 self.logger.experiment.log(
                     {
                         "enhanced": [
@@ -348,31 +348,37 @@ class GANModule(pl.LightningModule):
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
-            self.enhancer.parameters(), lr=self.enhancer_lr, betas=self.betas
+            self.enhancer.parameters(),
+            lr=self.enhancer_lr,
+            betas=self.betas,
+            weight_decay=0.01,
         )
         opt_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=self.discriminator_lr, betas=self.betas
+            self.discriminator.parameters(),
+            lr=self.discriminator_lr,
+            betas=self.betas,
+            weight_decay=0.01,
         )
 
-        lr_schedulers = []
-        #             {
-        #                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-        #                     opt_d,
-        #                     milestones=[30, 60, 90],
-        #                     gamma=0.1,
-        #                 ),
-        #                 "interval": "epoch",
-        #                 "frequency": 1,
-        #             },
-        #             {
-        #                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-        #                     opt_g,
-        #                     milestones=[30, 60, 90],
-        #                     gamma=0.1,
-        #                 ),
-        #                 "interval": "epoch",
-        #                 "frequency": 1,
-        #             },
-        #         ]
+        lr_schedulers = [
+            {
+                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                    opt_d,
+                    milestones=[30, 60, 90],
+                    gamma=0.1,
+                ),
+                "interval": "epoch",
+                "frequency": 1,
+            },
+            {
+                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                    opt_g,
+                    milestones=[30, 60, 90],
+                    gamma=0.1,
+                ),
+                "interval": "epoch",
+                "frequency": 1,
+            },
+        ]
 
         return [opt_g, opt_d], lr_schedulers
