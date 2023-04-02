@@ -144,7 +144,7 @@ class Splitter:
                             metadata=metadata,
                             frame=frame,
                             position=(v_pos, h_pos),
-                            is_intra=frame in intra_frames,
+                            is_intra=frame in intra_frames or metadata.profile == "AI",
                             corner="".join(corner),
                         )
                         video_chunks.append(chunk)
@@ -206,13 +206,13 @@ class Splitter:
             orig_buff = np.frombuffer(f.read(), dtype=np.uint8)
 
         buff = np.round(buff / 4).astype(np.uint8)
-        buff = np.resize(buff, (metadata.frames, nh, metadata.width))
+        buff = np.resize(buff, (metadata.frames, nh * metadata.width))
 
-        orig_buff = np.resize(orig_buff, (metadata.frames, nh, metadata.width))
+        orig_buff = np.resize(orig_buff, (metadata.frames, nh * metadata.width))
 
         for frame_num in tqdm(range(metadata.frames)):
             frame = buff[frame_num]
-            frame = cv2.cvtColor(frame, cv2.COLOR_YUV2RGB_I420)
+            frame = self.upsample_uv(frame, metadata.width, metadata.height)
             frame = cv2.copyMakeBorder(
                 frame,
                 self.chunk_border,
@@ -226,7 +226,7 @@ class Splitter:
             )
 
             orig_frame = orig_buff[frame_num]
-            orig_frame = cv2.cvtColor(orig_frame, cv2.COLOR_YUV2RGB_I420)
+            orig_frame = self.upsample_uv(orig_frame, metadata.width, metadata.height)
             orig_frame = cv2.copyMakeBorder(
                 orig_frame,
                 self.chunk_border,
@@ -274,6 +274,23 @@ class Splitter:
 
                     with open(fname, "wb") as f:
                         f.write(orig_frame_chunk.tobytes())
+
+    def upsample_uv(self, frame_buffer, width, height):
+        i = width * height
+        Y = frame_buffer[0:i]
+        Y = np.reshape(Y, (height, width))
+
+        uv_size = width * height // 4
+        U = frame_buffer[i : i + uv_size]
+        U = np.reshape(U, (height // 2, width // 2))
+        U = cv2.resize(U, (width, height))
+
+        i += uv_size
+        V = frame_buffer[i:]
+        V = np.reshape(V, (height // 2, width // 2))
+        V = cv2.resize(V, (width, height))
+
+        return np.dstack([Y, U, V])
 
 
 if __name__ == "__main__":
