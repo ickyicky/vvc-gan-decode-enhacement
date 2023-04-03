@@ -68,7 +68,7 @@ class VVCDataModule(pl.LightningDataModule):
         val_batch_size: int = 96,
         test_batch_size: int = 96,
         n_step: int = 1000,
-        n_step_valid: int = 100,
+        n_step_valid: int = 5,
     ):
         """__init__.
 

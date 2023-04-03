@@ -10,7 +10,6 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
 from .crosslid import compute_crosslid
 from .fid import calculate_fid
-from .csv_logger import log
 from .models.discriminator import WrapperInception
 
 
@@ -314,9 +313,6 @@ class GANModule(pl.LightningModule):
                 "test_ref_fid": ref_fid,
             },
         )
-
-    def log_test(self, data):
-        log(data)
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
