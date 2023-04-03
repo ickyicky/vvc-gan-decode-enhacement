@@ -9,7 +9,7 @@ from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
 from .crosslid import compute_crosslid
-from .fid import calculate_fid
+from .fid import compute_fid
 from .models.discriminator import WrapperInception
 
 
@@ -191,20 +191,24 @@ class GANModule(pl.LightningModule):
         transformed_chunks = self.psnr_transform(chunks)
 
         enhanced_psnr = psnr(
-            transformed_enhacned, transformed_orig,
+            transformed_enhacned,
+            transformed_orig,
         )
         orig_psnr = psnr(
-            transformed_chunks, transformed_orig,
+            transformed_chunks,
+            transformed_orig,
         )
         enhanced_ssim = ssim(
-            transformed_enhacned, transformed_orig,
+            transformed_enhacned,
+            transformed_orig,
         )
         orig_ssim = ssim(
-            transformed_chunks, transformed_orig,
+            transformed_chunks,
+            transformed_orig,
         )
 
-        ref_fid = calculate_fid(orig_features, y_features)
-        fid = calculate_fid(y_hat_features, y_features)
+        ref_fid = compute_fid(orig_features, y_features)
+        fid = compute_fid(y_hat_features, y_features)
 
         # log everything
         self.log_dict(
@@ -282,21 +286,24 @@ class GANModule(pl.LightningModule):
         transformed_chunks = self.psnr_transform(chunks)
 
         enhanced_psnr = psnr(
-            transformed_enhacned, transformed_orig,
+            transformed_enhacned,
+            transformed_orig,
         )
         orig_psnr = psnr(
-            transformed_chunks, transformed_orig,
+            transformed_chunks,
+            transformed_orig,
         )
         enhanced_ssim = ssim(
-            transformed_enhacned, transformed_orig,
+            transformed_enhacned,
+            transformed_orig,
         )
         orig_ssim = ssim(
-            transformed_chunks, transformed_orig,
+            transformed_chunks,
+            transformed_orig,
         )
 
-        ref_fid = calculate_fid(orig_features, y_features)
-        fid = calculate_fid(y_hat_features, y_features)
-
+        ref_fid = compute_fid(orig_features, y_features)
+        fid = compute_fid(y_hat_features, y_features)
 
         # log everything
         self.log_dict(
