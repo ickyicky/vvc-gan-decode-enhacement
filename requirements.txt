@@ -2,3 +2,4 @@ tqdm
 argparse-dataclass
 pydantic
 torchmetrics
+torchmetrics[image]

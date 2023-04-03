@@ -7,9 +7,11 @@ import numpy as np
 from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
+from torchmetrics.image.fid import FrechetInceptionDistance
 from typing import Tuple
 from .crosslid import compute_crosslid
 from .csv_logger import log
+from .models.discriminator import WrapperInception
 
 
 class GANModule(pl.LightningModule):
@@ -27,6 +29,7 @@ class GANModule(pl.LightningModule):
 
         self.enhancer = enhancer
         self.discriminator = discriminator
+        self.wrapper_inception = WrapperInception(discriminator)
 
         self.enhancer_lr = enhancer_lr
         self.discriminator_lr = discriminator_lr
@@ -34,6 +37,7 @@ class GANModule(pl.LightningModule):
         self.betas = betas
 
         self.num_samples = num_samples
+        self.fid = FrechetInceptionDistance(reset_real_features=True)
 
     def psnr_transform(self, output):
         # crop removes area that is gradiented
@@ -92,15 +96,11 @@ class GANModule(pl.LightningModule):
                             )
                         ],
                         "uncompressed": [
-                            wandb.Image(
-                                x, caption=f"uncompressed image {i}"
-                            )
+                            wandb.Image(x, caption=f"uncompressed image {i}")
                             for i, x in enumerate(orig_chunks[: self.num_samples].cpu())
                         ],
                         "decompressed": [
-                            wandb.Image(
-                                x, caption=f"decompressed image {i}"
-                            )
+                            wandb.Image(x, caption=f"decompressed image {i}")
                             for i, x in enumerate(chunks[: self.num_samples].cpu())
                         ],
                     }
@@ -133,10 +133,6 @@ class GANModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         chunks, orig_chunks, metadata = batch
 
-        # create holder for features
-        target = {}
-        hook = self.discriminator.register_hook(target)
-
         # ENHANCE!
         enhanced = self(chunks, metadata)
 
@@ -147,7 +143,7 @@ class GANModule(pl.LightningModule):
 
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
-        y_hat_features = target["features"]
+        y_hat_features = self.wrapper_inception(enhanced)
 
         g_loss = self.adversarial_loss(preds, valid)
 
@@ -173,7 +169,7 @@ class GANModule(pl.LightningModule):
             )
 
         real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
-        y_features = target["features"]
+        y_features = self.wrapper_inception(orig_chunks)
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -188,11 +184,10 @@ class GANModule(pl.LightningModule):
         crosslid = self.crosslid(y_hat_features, y_features)
 
         self.adversarial_loss(self.discriminator(chunks), fake)
-        orig_features = target["features"]
+        orig_features = self.wrapper_inception(chunks)
         orig_crosslid = self.crosslid(orig_features, y_features)
-        hook.remove()
 
-        # calculate psnr and ssim
+        # calculate psnr, ssim, FID
         enhanced_psnr = psnr(
             self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
         )
@@ -201,6 +196,11 @@ class GANModule(pl.LightningModule):
             self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
         )
         orig_ssim = ssim(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
+        self.fid.update(orig_chunks, real=True)
+        self.fid.update(enhanced, real=False)
+        fid = self.fid.compute()
+        self.fid.update(chunks, real=False)
+        ref_fid = self.fid.compute()
 
         # log everything
         self.log_dict(
@@ -213,15 +213,13 @@ class GANModule(pl.LightningModule):
                 "val_ref_psnr": orig_psnr,
                 "val_ssim": enhanced_ssim,
                 "val_ref_ssim": orig_ssim,
+                "val_fid": fid,
+                "val_ref_fid": ref_fid,
             },
         )
 
     def test_step(self, batch, batch_idx):
         chunks, orig_chunks, metadata = batch
-
-        # create holder for features
-        target = {}
-        hook = self.discriminator.register_hook(target)
 
         # ENHANCE!
         enhanced = self(chunks, metadata)
@@ -233,7 +231,7 @@ class GANModule(pl.LightningModule):
 
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
-        y_hat_features = target["features"]
+        y_hat_features = self.wrapper_inception(enhanced)
 
         g_loss = self.adversarial_loss(preds, valid)
 
@@ -259,7 +257,7 @@ class GANModule(pl.LightningModule):
             )
 
         real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
-        y_features = target["features"]
+        y_features = self.wrapper_inception(orig_chunks)
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -274,27 +272,34 @@ class GANModule(pl.LightningModule):
         crosslid = self.crosslid(y_hat_features, y_features, True)
 
         self.adversarial_loss(self.discriminator(chunks), fake)
-        orig_features = target["features"]
+        orig_features = self.wrapper_inception(chunks)
         orig_crosslid = self.crosslid(orig_features, y_features, True)
-        hook.remove()
 
         # calculate psnr and ssim
-        enhancer_psnrs = [
-            psnr(self.psnr_transform(enh), self.psnr_transform(orig_chunk))
-            for enh, orig_chunk in zip(enhanced.split(1), orig_chunks.split(1))
-        ]
-        orig_psnrs = [
-            psnr(self.psnr_transform(chunk), self.psnr_transform(orig_chunk))
-            for chunk, orig_chunk in zip(chunks.split(1), orig_chunks.split(1))
-        ]
-        enhancer_ssims = [
-            ssim(self.psnr_transform(enh), self.psnr_transform(orig_chunk))
-            for enh, orig_chunk in zip(enhanced.split(1), orig_chunks.split(1))
-        ]
-        orig_ssims = [
-            ssim(self.psnr_transform(chunk), self.psnr_transform(orig_chunk))
-            for chunk, orig_chunk in zip(chunks.split(1), orig_chunks.split(1))
-        ]
+        enhancer_psnrs = []
+        orig_psnrs = []
+        enhancer_ssims = []
+        orig_ssims = []
+
+        self.fid.update(orig_chunks, real=True)
+        fids = []
+        ref_fids = []
+
+        for enhanced, orig_chunk, chunk in zip(
+            enhanced.split(1), orig_chunks.split(1), chunks.split(1)
+        ):
+            self.fid.update(enhanced, real=False)
+            fids.append(self.fid.compute())
+            self.fid.update(orig_chunk, real=False)
+            ref_fids.append(self.fid.compute())
+
+            enhanced = self.psnr_transform(enhanced)
+            orig_chunk = self.psnr_transform(orig_chunk)
+            chunk = self.psnr_transform(chunk)
+            enhancer_psnrs.append(psnr(enhanced, orig_chunk))
+            orig_psnrs.append(psnr(chunk, orig_chunk))
+            enhancer_ssims.append(ssim(enhanced, orig_chunk))
+            orig_ssims.append(ssim(chunk, orig_chunk))
 
         # log everything
         self.log_dict(
@@ -307,6 +312,8 @@ class GANModule(pl.LightningModule):
                 "test_ref_psnr": torch.mean(torch.tensor(orig_psnrs)),
                 "test_ssim": torch.mean(torch.tensor(enhancer_ssims)),
                 "test_ref_ssim": torch.mean(torch.tensor(orig_ssims)),
+                "test_fid": torch.mean(fids),
+                "test_ref_fid": torch.mean(ref_fids),
             },
         )
         self.log_test(
@@ -317,6 +324,8 @@ class GANModule(pl.LightningModule):
                 "test_ref_psnr": orig_psnrs,
                 "test_ssim": enhancer_ssims,
                 "test_ref_ssim": orig_ssims,
+                "test_fid": fids,
+                "test_ref_fid": ref_fids,
                 "test_metadata": metadata,
             },
         )

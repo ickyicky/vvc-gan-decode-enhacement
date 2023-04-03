@@ -1,8 +1,9 @@
 import torch.nn as nn
+import torch
 
 
 def DiscriminatorBlock(in_features, out_features, kernel_size=4, stride=4, padding=1):
-    return nn.Sequential(
+    parts = [
         nn.Conv2d(
             in_features,
             out_features,
@@ -13,7 +14,8 @@ def DiscriminatorBlock(in_features, out_features, kernel_size=4, stride=4, paddi
         ),
         nn.BatchNorm2d(out_features),
         nn.LeakyReLU(0.2, inplace=True),
-    )
+    ]
+    return nn.Sequential(*parts)
 
 
 class Discriminator(nn.Module):
@@ -45,29 +47,31 @@ class Discriminator(nn.Module):
                 break
 
         parts = [
-            *blocks,
             nn.Conv2d(
                 cur_features, 1, kernel_size=1, stride=1, padding=0, bias=False
             ),  # practically linear layer
             nn.Flatten(),
         ]
 
-        self.model = nn.Sequential(
-            *parts,
-        )
+        self.blocks = nn.Sequential(*blocks)
+        self.output = nn.Sequential(*parts)
 
     def forward(self, x):
-        result = self.model(x)
+        features = self.blocks(x)
+        result = self.output(features)
         return result
 
-    def register_hook(self, target):
-        return self.model[-3][-1].register_forward_hook(self.save_features(target))
 
-    def save_features(self, target):
-        def hook(model, input, output):
-            target["features"] = output.detach()
+class WrapperInception(nn.Module):
+    def __init__(self, discriminator: Discriminator):
+        super().__init__()
+        self.discriminator = Discriminator()
+        self.flatten = nn.Flatten()
 
-        return hook
+    @torch.no_grad()
+    def forward(self, x):
+        features = self.flatten(self.discriminator.blocks(x))
+        return features
 
 
 if __name__ == "__main__":
@@ -76,6 +80,7 @@ if __name__ == "__main__":
     g = Discriminator()
 
     target = {}
-    g.register_hook(target)
     summary(g, (3, 132, 132), device="cpu")
-    print(target["features"].shape)
+
+    g = WrapperInception(g)
+    summary(g, (3, 132, 132), device="cpu")

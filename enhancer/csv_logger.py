@@ -37,6 +37,8 @@ class CsvLogger:
                 "ssim",
                 "ref_crosslid",
                 "crosslid",
+                "ref_fid",
+                "fid",
             ]
         )
 
@@ -50,6 +52,8 @@ class CsvLogger:
         ssim = data["test_ssim"]
         ref_crosslid = data["test_ref_crosslid"]
         crosslid = data["test_crosslid"]
+        fid = data["test_fid"].cpu()
+        ref_fid = data["test_ref_fid"].cpu()
 
         for i in range(len(metadata)):
             mt = metadata[i].view(-1)
@@ -68,6 +72,8 @@ class CsvLogger:
                         str(float(ssim[i].cpu())),
                         str(float(ref_crosslid[i])),
                         str(float(crosslid[i])),
+                        str(float(ref_fid[i])),
+                        str(float(fid[i])),
                     ],
                 )
             )
