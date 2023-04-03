@@ -2,6 +2,7 @@ import torch
 import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
+import cv2
 import numpy as np
 from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
@@ -84,23 +85,23 @@ class GANModule(pl.LightningModule):
                 self.logger.experiment.log(
                     {
                         "enhanced": [
-                            wandb.Image(x, caption=f"Pred: {pred.item()}", mode="YCbCr")
+                            wandb.Image(x, caption=f"Pred: {pred.item()}")
                             for x, pred in zip(
-                                enhanced[: self.num_samples],
+                                enhanced[: self.num_samples].cpu(),
                                 preds.cpu()[: self.num_samples],
                             )
                         ],
                         "uncompressed": [
                             wandb.Image(
-                                x, caption=f"uncompressed image {i}", mode="YCbCr"
+                                x, caption=f"uncompressed image {i}"
                             )
-                            for i, x in enumerate(orig_chunks[: self.num_samples])
+                            for i, x in enumerate(orig_chunks[: self.num_samples].cpu())
                         ],
                         "decompressed": [
                             wandb.Image(
-                                x, caption=f"decompressed image {i}", mode="YCbCr"
+                                x, caption=f"decompressed image {i}"
                             )
-                            for i, x in enumerate(chunks[: self.num_samples])
+                            for i, x in enumerate(chunks[: self.num_samples].cpu())
                         ],
                     }
                 )
@@ -154,18 +155,18 @@ class GANModule(pl.LightningModule):
             self.logger.experiment.log(
                 {
                     "validation_enhanced": [
-                        wandb.Image(x, caption=f"Pred: {pred.item()}", mode="YCbCr")
+                        wandb.Image(x, caption=f"Pred: {pred.item()}")
                         for x, pred in zip(
                             enhanced[: self.num_samples],
                             preds.cpu()[: self.num_samples],
                         )
                     ],
                     "validation_uncompressed": [
-                        wandb.Image(x, caption=f"uncompressed image {i}", mode="YCbCr")
+                        wandb.Image(x, caption=f"uncompressed image {i}")
                         for i, x in enumerate(orig_chunks[: self.num_samples])
                     ],
                     "validation_decompressed": [
-                        wandb.Image(x, caption=f"decompressed image {i}", mode="YCbCr")
+                        wandb.Image(x, caption=f"decompressed image {i}")
                         for i, x in enumerate(chunks[: self.num_samples])
                     ],
                 }
@@ -240,18 +241,18 @@ class GANModule(pl.LightningModule):
             self.logger.experiment.log(
                 {
                     "test_enhanced": [
-                        wandb.Image(x, caption=f"Pred: {pred.item()}", mode="YCbCr")
+                        wandb.Image(x, caption=f"Pred: {pred.item()}")
                         for x, pred in zip(
                             enhanced[: self.num_samples],
                             preds.cpu()[: self.num_samples],
                         )
                     ],
                     "test_uncompressed": [
-                        wandb.Image(x, caption=f"uncompressed image {i}", mode="YCbCr")
+                        wandb.Image(x, caption=f"uncompressed image {i}")
                         for i, x in enumerate(orig_chunks[: self.num_samples])
                     ],
                     "test_decompressed": [
-                        wandb.Image(x, caption=f"decompressed image {i}", mode="YCbCr")
+                        wandb.Image(x, caption=f"decompressed image {i}")
                         for i, x in enumerate(chunks[: self.num_samples])
                     ],
                 }
