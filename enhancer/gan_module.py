@@ -7,9 +7,9 @@ import numpy as np
 from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
-from torchmetrics.image.fid import FrechetInceptionDistance
 from typing import Tuple
 from .crosslid import compute_crosslid
+from .fid import calculate_fid
 from .csv_logger import log
 from .models.discriminator import WrapperInception
 
@@ -37,7 +37,6 @@ class GANModule(pl.LightningModule):
         self.betas = betas
 
         self.num_samples = num_samples
-        self.fid = FrechetInceptionDistance(reset_real_features=True, normalize=True)
 
     def psnr_transform(self, output):
         # crop removes area that is gradiented
@@ -188,19 +187,25 @@ class GANModule(pl.LightningModule):
         orig_crosslid = self.crosslid(orig_features, y_features)
 
         # calculate psnr, ssim, FID
+        transformed_enhacned = self.psnr_transform(enhanced)
+        transformed_orig = self.psnr_transform(orig_chunks)
+        transformed_chunks = self.psnr_transform(chunks)
+
         enhanced_psnr = psnr(
-            self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
+            transformed_enhacned, transformed_orig,
         )
-        orig_psnr = psnr(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
+        orig_psnr = psnr(
+            transformed_chunks, transformed_orig,
+        )
         enhanced_ssim = ssim(
-            self.psnr_transform(enhanced), self.psnr_transform(orig_chunks)
+            transformed_enhacned, transformed_orig,
         )
-        orig_ssim = ssim(self.psnr_transform(chunks), self.psnr_transform(orig_chunks))
-        self.fid.update(orig_chunks, real=True)
-        self.fid.update(enhanced, real=False)
-        fid = self.fid.compute()
-        self.fid.update(chunks, real=False)
-        ref_fid = self.fid.compute()
+        orig_ssim = ssim(
+            transformed_chunks, transformed_orig,
+        )
+
+        ref_fid = calculate_fid(orig_features, y_features)
+        fid = calculate_fid(y_hat_features, y_features)
 
         # log everything
         self.log_dict(
@@ -269,64 +274,44 @@ class GANModule(pl.LightningModule):
         d_loss = (real_loss + fake_loss) / 2
 
         # calculate crosslid, this time as well for decompressed images
-        crosslid = self.crosslid(y_hat_features, y_features, True)
-
-        self.adversarial_loss(self.discriminator(chunks), fake)
+        crosslid = self.crosslid(y_hat_features, y_features)
         orig_features = self.wrapper_inception(chunks)
-        orig_crosslid = self.crosslid(orig_features, y_features, True)
+        orig_crosslid = self.crosslid(orig_features, y_features)
 
-        # calculate psnr and ssim
-        enhancer_psnrs = []
-        orig_psnrs = []
-        enhancer_ssims = []
-        orig_ssims = []
+        transformed_enhacned = self.psnr_transform(enhanced)
+        transformed_orig = self.psnr_transform(orig_chunks)
+        transformed_chunks = self.psnr_transform(chunks)
 
-        self.fid.update(orig_chunks, real=True)
-        fids = []
-        ref_fids = []
+        enhanced_psnr = psnr(
+            transformed_enhacned, transformed_orig,
+        )
+        orig_psnr = psnr(
+            transformed_chunks, transformed_orig,
+        )
+        enhanced_ssim = ssim(
+            transformed_enhacned, transformed_orig,
+        )
+        orig_ssim = ssim(
+            transformed_chunks, transformed_orig,
+        )
 
-        for enhanced, orig_chunk, chunk in zip(
-            enhanced.split(1), orig_chunks.split(1), chunks.split(1)
-        ):
-            self.fid.update(enhanced, real=False)
-            fids.append(self.fid.compute())
-            self.fid.update(orig_chunk, real=False)
-            ref_fids.append(self.fid.compute())
+        ref_fid = calculate_fid(orig_features, y_features)
+        fid = calculate_fid(y_hat_features, y_features)
 
-            enhanced = self.psnr_transform(enhanced)
-            orig_chunk = self.psnr_transform(orig_chunk)
-            chunk = self.psnr_transform(chunk)
-            enhancer_psnrs.append(psnr(enhanced, orig_chunk))
-            orig_psnrs.append(psnr(chunk, orig_chunk))
-            enhancer_ssims.append(ssim(enhanced, orig_chunk))
-            orig_ssims.append(ssim(chunk, orig_chunk))
 
         # log everything
         self.log_dict(
             {
                 "test_g_loss": g_loss,
                 "test_d_loss": d_loss,
-                "test_crosslid": np.mean(crosslid),
-                "test_ref_crosslid": np.mean(orig_crosslid),
-                "test_psnr": torch.mean(torch.tensor(enhancer_psnrs)),
-                "test_ref_psnr": torch.mean(torch.tensor(orig_psnrs)),
-                "test_ssim": torch.mean(torch.tensor(enhancer_ssims)),
-                "test_ref_ssim": torch.mean(torch.tensor(orig_ssims)),
-                "test_fid": torch.mean(fids),
-                "test_ref_fid": torch.mean(ref_fids),
-            },
-        )
-        self.log_test(
-            {
                 "test_crosslid": crosslid,
                 "test_ref_crosslid": orig_crosslid,
-                "test_psnr": enhancer_psnrs,
-                "test_ref_psnr": orig_psnrs,
-                "test_ssim": enhancer_ssims,
-                "test_ref_ssim": orig_ssims,
-                "test_fid": fids,
-                "test_ref_fid": ref_fids,
-                "test_metadata": metadata,
+                "test_psnr": enhanced_psnr,
+                "test_ref_psnr": orig_psnr,
+                "test_ssim": enhanced_ssim,
+                "test_ref_ssim": orig_ssim,
+                "test_fid": fid,
+                "test_ref_fid": ref_fid,
             },
         )
 
