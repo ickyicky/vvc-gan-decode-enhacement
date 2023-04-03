@@ -150,6 +150,8 @@ class Splitter:
                         video_chunks.append(chunk)
 
             self.save_chunks(video_chunks)
+            with open(self.done_cache, "a") as f:
+                f.write(f"\n{file}")
             print(f"DONE {file}")
 
     def load_metadata_for(self, file: str) -> Metadata:

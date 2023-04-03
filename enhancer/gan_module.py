@@ -37,7 +37,7 @@ class GANModule(pl.LightningModule):
         self.betas = betas
 
         self.num_samples = num_samples
-        self.fid = FrechetInceptionDistance(reset_real_features=True)
+        self.fid = FrechetInceptionDistance(reset_real_features=True, normalize=True)
 
     def psnr_transform(self, output):
         # crop removes area that is gradiented
