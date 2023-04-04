@@ -69,7 +69,7 @@ class VVCDataset(torch.utils.data.Dataset):
 
         :rtype: List[Chunk]
         """
-        _, fname, profiles, frame, position = fname.split("/")
+        fname, profiles, frame, position = fname.split("/")[-4:]
         profile, qp, alf, db, sao = profiles.split("_")
         frame, is_intra = frame.split("_")
         pos0, pos1, corner = position.split(".")[0].split("_")

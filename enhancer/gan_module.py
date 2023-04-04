@@ -2,14 +2,11 @@ import torch
 import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
-import cv2
-import numpy as np
 from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
 from .crosslid import compute_crosslid
-from .fid import compute_fid
 from .models.discriminator import WrapperInception
 
 
@@ -185,7 +182,7 @@ class GANModule(pl.LightningModule):
         orig_features = self.wrapper_inception(chunks)
         orig_crosslid = self.crosslid(orig_features, y_features)
 
-        # calculate psnr, ssim, FID
+        # calculate psnr, ssim,
         transformed_enhacned = self.psnr_transform(enhanced)
         transformed_orig = self.psnr_transform(orig_chunks)
         transformed_chunks = self.psnr_transform(chunks)
@@ -207,9 +204,6 @@ class GANModule(pl.LightningModule):
             transformed_orig,
         )
 
-        ref_fid = compute_fid(orig_features, y_features)
-        fid = compute_fid(y_hat_features, y_features)
-
         # log everything
         self.log_dict(
             {
@@ -221,8 +215,6 @@ class GANModule(pl.LightningModule):
                 "val_ref_psnr": orig_psnr,
                 "val_ssim": enhanced_ssim,
                 "val_ref_ssim": orig_ssim,
-                "val_fid": fid,
-                "val_ref_fid": ref_fid,
             },
         )
 
@@ -302,9 +294,6 @@ class GANModule(pl.LightningModule):
             transformed_orig,
         )
 
-        ref_fid = compute_fid(orig_features, y_features)
-        fid = compute_fid(y_hat_features, y_features)
-
         # log everything
         self.log_dict(
             {
@@ -316,8 +305,6 @@ class GANModule(pl.LightningModule):
                 "test_ref_psnr": orig_psnr,
                 "test_ssim": enhanced_ssim,
                 "test_ref_ssim": orig_ssim,
-                "test_fid": fid,
-                "test_ref_fid": ref_fid,
             },
         )
 

@@ -109,32 +109,34 @@ class VVCDataModule(pl.LightningDataModule):
 
         :param stage:
         """
-        self.dataset_train = VVCDataset(
-            chunk_folder=self.chunk_folder,
-            orig_chunk_folder=self.orig_chunk_folder,
-            chunk_transform=self.chunk_transform(),
-            metadata_transform=self.metadata_transform(),
-            chunk_height=self.chunk_height,
-            chunk_width=self.chunk_width,
-        )
+        if stage == "fit":
+            self.dataset_train = VVCDataset(
+                chunk_folder=self.chunk_folder,
+                orig_chunk_folder=self.orig_chunk_folder,
+                chunk_transform=self.chunk_transform(),
+                metadata_transform=self.metadata_transform(),
+                chunk_height=self.chunk_height,
+                chunk_width=self.chunk_width,
+            )
 
-        self.dataset_test = VVCDataset(
-            chunk_folder=self.test_chunk_folder,
-            orig_chunk_folder=self.test_orig_chunk_folder,
-            chunk_transform=self.chunk_transform(),
-            metadata_transform=self.metadata_transform(),
-            chunk_height=self.chunk_height,
-            chunk_width=self.chunk_width,
-        )
+            self.dataset_val = VVCDataset(
+                chunk_folder=self.test_chunk_folder,
+                orig_chunk_folder=self.test_orig_chunk_folder,
+                chunk_transform=self.chunk_transform(),
+                metadata_transform=self.metadata_transform(),
+                chunk_height=self.chunk_height,
+                chunk_width=self.chunk_width,
+            )
 
-        self.dataset_val = VVCDataset(
-            chunk_folder=self.test_chunk_folder,
-            orig_chunk_folder=self.test_orig_chunk_folder,
-            chunk_transform=self.chunk_transform(),
-            metadata_transform=self.metadata_transform(),
-            chunk_height=self.chunk_height,
-            chunk_width=self.chunk_width,
-        )
+        if stage == "test":
+            self.dataset_test = VVCDataset(
+                chunk_folder=self.test_chunk_folder,
+                orig_chunk_folder=self.test_orig_chunk_folder,
+                chunk_transform=self.chunk_transform(),
+                metadata_transform=self.metadata_transform(),
+                chunk_height=self.chunk_height,
+                chunk_width=self.chunk_width,
+            )
 
     def train_dataloader(self):
         """train_dataloader."""
