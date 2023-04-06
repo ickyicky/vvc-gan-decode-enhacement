@@ -273,8 +273,11 @@ class GANModule(pl.LightningModule):
         crosslid = self.crosslid(y_hat_features, y_features)
         orig_features = self.wrapper_inception(chunks)
         orig_crosslid = self.crosslid(orig_features, y_features)
-        fid = compute_fid(y_features, y_hat_features)
-        orig_fid = compute_fid(y_features, orig_features)
+
+        # select features for fid
+        idx = torch.randperm(chunks.size(0))[: self.num_samples]
+        fid = compute_fid(y_features[:idx], y_hat_features[:idx])
+        orig_fid = compute_fid(y_features[:idx], orig_features[:idx])
 
         transformed_enhacned = self.psnr_transform(enhanced)
         transformed_orig = self.psnr_transform(orig_chunks)
