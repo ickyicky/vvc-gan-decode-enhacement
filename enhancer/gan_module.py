@@ -276,8 +276,8 @@ class GANModule(pl.LightningModule):
 
         # select features for fid
         idx = torch.randperm(chunks.size(0))[: self.num_samples]
-        fid = compute_fid(y_features[:idx], y_hat_features[:idx])
-        orig_fid = compute_fid(y_features[:idx], orig_features[:idx])
+        fid = compute_fid(y_features[idx], y_hat_features[idx])
+        orig_fid = compute_fid(y_features[idx], orig_features[idx])
 
         transformed_enhacned = self.psnr_transform(enhanced)
         transformed_orig = self.psnr_transform(orig_chunks)
