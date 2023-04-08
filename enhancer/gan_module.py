@@ -315,14 +315,8 @@ class GANModule(pl.LightningModule):
         # ENHANCE!
         enhanced = self(chunks, metadata)
 
-        def get_chunk(idx):
-            result = {}
-            for key in chunk_objs:
-                result[key] = chunk_objs[key][idx].cpu()
-            return result
-
-        for idx, chunk_data in enumerate(enhanced):
-            VVCDataset.save_chunk(get_chunk(idx), chunk_data.cpu().numpy())
+        for chunk, chunk_data in zip(enhanced, chunk_objs):
+            VVCDataset.save_chunk(chunk, chunk_data.cpu().numpy())
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(

@@ -1,8 +1,7 @@
 import torch
 import os
 import numpy as np
-from dacite import from_dict
-from typing import List, Tuple, Any, Dict
+from typing import List, Tuple, Any
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 from glob import glob
@@ -28,6 +27,38 @@ class Chunk:
     position: Tuple[int, int]
     corner: str
     metadata: Any
+
+
+def chunk_to_tuple(chunk: Chunk) -> Tuple:
+    return (
+        chunk.position,
+        chunk.corner,
+        chunk.metadata.file,
+        chunk.metadata.profile,
+        chunk.metadata.qp,
+        chunk.metadata.alf,
+        chunk.metadata.sao,
+        chunk.metadata.db,
+        chunk.metadata.frame,
+        chunk.metadata.is_intra,
+    )
+
+
+def chunk_from_tuple(data: Tuple) -> Chunk:
+    return Chunk(
+        position=data[0],
+        corner=data[1],
+        metadata=Metadata(
+            file=data[2],
+            profile=data[3],
+            qp=data[4],
+            alf=data[5],
+            sao=data[6],
+            db=data[7],
+            frame=data[8],
+            is_intra=data[9],
+        ),
+    )
 
 
 class VVCDataset(torch.utils.data.Dataset):
@@ -147,8 +178,8 @@ class VVCDataset(torch.utils.data.Dataset):
         return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 
     @classmethod
-    def save_chunk(cls, chunk: Dict, chunk_data: Any) -> Any:
-        chunk = from_dict(data_class=Chunk, data=chunk)
+    def save_chunk(cls, chunk: Tuple, chunk_data: Any) -> Any:
+        chunk = chunk_from_tuple(chunk)
         chunk_path = cls.CHUNK_NAME.format_map(
             dict(**asdict(chunk), **asdict(chunk.metadata))
         )
@@ -184,7 +215,7 @@ class VVCDataset(torch.utils.data.Dataset):
             self.chunk_transform(chunk),
             self.chunk_transform(orig_chunk),
             self.metadata_transform(metadata),
-            asdict(chunk_obj),
+            chunk_to_tuple(chunk_obj),
         )
 
 
