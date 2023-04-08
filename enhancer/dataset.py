@@ -31,7 +31,8 @@ class Chunk:
 
 def chunk_to_tuple(chunk: Chunk) -> Tuple:
     return (
-        chunk.position,
+        chunk.position[0],
+        chunk.position[1],
         chunk.corner,
         chunk.metadata.file,
         chunk.metadata.profile,
@@ -46,17 +47,17 @@ def chunk_to_tuple(chunk: Chunk) -> Tuple:
 
 def chunk_from_tuple(data: Tuple) -> Chunk:
     return Chunk(
-        position=data[0],
-        corner=data[1],
+        position=(data[0], data[1]),
+        corner=data[2],
         metadata=Metadata(
-            file=data[2],
-            profile=data[3],
-            qp=data[4],
-            alf=data[5],
-            sao=data[6],
-            db=data[7],
-            frame=data[8],
-            is_intra=data[9],
+            file=data[3],
+            profile=data[4],
+            qp=data[5],
+            alf=data[6],
+            sao=data[7],
+            db=data[8],
+            frame=data[9],
+            is_intra=data[10],
         ),
     )
 
