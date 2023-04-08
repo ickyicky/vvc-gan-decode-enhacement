@@ -128,7 +128,7 @@ class VVCDataModule(pl.LightningDataModule):
                 chunk_width=self.chunk_width,
             )
 
-        if stage == "test":
+        if stage in ("test", "predict"):
             self.dataset_test = VVCDataset(
                 chunk_folder=self.test_chunk_folder,
                 orig_chunk_folder=self.test_orig_chunk_folder,
@@ -162,6 +162,9 @@ class VVCDataModule(pl.LightningDataModule):
             num_workers=os.cpu_count(),
         )
         return data_loader
+
+    def predict_dataloader(self):
+        return self.test_dataloader()
 
     def val_dataloader(self):
         """val_dataloader."""

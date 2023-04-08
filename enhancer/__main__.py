@@ -63,6 +63,12 @@ if __name__ == "__main__":
         action="store_true",
         help="number of epochs",
     )
+    parser.add_argument(
+        "--run",
+        "-r",
+        action="store_true",
+        help="number of epochs",
+    )
 
     args = parser.parse_args()
 
@@ -102,5 +108,7 @@ if __name__ == "__main__":
     )
     if args.test:
         trainer.test(module, data_module)
+    elif args.run:
+        trainer.predict(module, data_module)
     else:
         trainer.fit(module, data_module)

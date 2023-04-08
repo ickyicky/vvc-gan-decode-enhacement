@@ -8,6 +8,7 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
 from .crosslid import compute_crosslid
 from .models.discriminator import WrapperInception
+from .dataset import VVCDataset
 
 
 class GANModule(pl.LightningModule):
@@ -61,7 +62,7 @@ class GANModule(pl.LightningModule):
         )
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        chunks, orig_chunks, metadata = batch
+        chunks, orig_chunks, metadata, _ = batch
 
         # train ENHANCE!
         if optimizer_idx == 0:
@@ -126,7 +127,7 @@ class GANModule(pl.LightningModule):
             return d_loss
 
     def validation_step(self, batch, batch_idx):
-        chunks, orig_chunks, metadata = batch
+        chunks, orig_chunks, metadata, _ = batch
 
         # ENHANCE!
         enhanced = self(chunks, metadata)
@@ -219,7 +220,7 @@ class GANModule(pl.LightningModule):
         )
 
     def test_step(self, batch, batch_idx):
-        chunks, orig_chunks, metadata = batch
+        chunks, orig_chunks, metadata, _ = batch
 
         # ENHANCE!
         enhanced = self(chunks, metadata)
@@ -307,6 +308,15 @@ class GANModule(pl.LightningModule):
                 "test_ref_ssim": orig_ssim,
             },
         )
+
+    def predict_step(self, batch, batch_idx):
+        chunks, _, metadata, chunk_objs = batch
+
+        # ENHANCE!
+        enhanced = self(chunks, metadata)
+
+        for enh, chunk in zip(enhanced, chunk_objs):
+            VVCDataset.save_chunk(chunk, enh.cpu().numpy())
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(

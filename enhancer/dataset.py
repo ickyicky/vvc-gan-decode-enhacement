@@ -1,11 +1,11 @@
 import torch
 import os
-import cv2
 import numpy as np
-from typing import List, Tuple, Any, Dict, Optional
+from typing import List, Tuple, Any
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 from glob import glob
+from pathlib import Path
 
 
 @validate_arguments
@@ -40,6 +40,7 @@ class VVCDataset(torch.utils.data.Dataset):
     CHUNK_GLOB = "{folder}/*/*/*/*.png"
     CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}/{position[0]}_{position[1]}_{corner}.png"
     ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.png"
+    SAVED_CHUNK_FOLDER = "enhanced"
 
     def __init__(
         self,
@@ -144,6 +145,18 @@ class VVCDataset(torch.utils.data.Dataset):
 
         return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 
+    @classmethod
+    def save_chunk(cls, chunk: Chunk, chunk_data: Any) -> Any:
+        chunk_path = cls.CHUNK_NAME.format_map(
+            dict(**asdict(chunk), **asdict(chunk.metadata))
+        )
+        chunk_path = os.path.join(cls.SAVED_CHUNK_FOLDER, chunk_path)
+        folder = os.path.dirname(chunk_path)
+        Path(folder).mkdir(parents=True, exist_ok=True)
+
+        with open(chunk_path, "wb") as f:
+            f.write(chunk_data.tobytes())
+
     def _metadata_to_np(self, metadata: Metadata) -> Any:
         """
         Numpy representation of metadata
@@ -163,12 +176,13 @@ class VVCDataset(torch.utils.data.Dataset):
         return len(self.chunk_files)
 
     def __getitem__(self, idx: int) -> Tuple[Any, Any, Any]:
-        chunk = self.get_chunk(self.chunk_files[idx])
-        chunk, orig_chunk, metadata = self.load_chunk(chunk)
+        chunk_obj = self.get_chunk(self.chunk_files[idx])
+        chunk, orig_chunk, metadata = self.load_chunk(chunk_obj)
         return (
             self.chunk_transform(chunk),
             self.chunk_transform(orig_chunk),
             self.metadata_transform(metadata),
+            chunk_obj,
         )
 
 
