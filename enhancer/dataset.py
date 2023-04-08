@@ -1,7 +1,8 @@
 import torch
 import os
 import numpy as np
-from typing import List, Tuple, Any
+from dacite import from_dict
+from typing import List, Tuple, Any, Dict
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 from glob import glob
@@ -146,7 +147,8 @@ class VVCDataset(torch.utils.data.Dataset):
         return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 
     @classmethod
-    def save_chunk(cls, chunk: Chunk, chunk_data: Any) -> Any:
+    def save_chunk(cls, chunk: Dict, chunk_data: Any) -> Any:
+        chunk = from_dict(data_class=Chunk, data=chunk)
         chunk_path = cls.CHUNK_NAME.format_map(
             dict(**asdict(chunk), **asdict(chunk.metadata))
         )
@@ -182,7 +184,7 @@ class VVCDataset(torch.utils.data.Dataset):
             self.chunk_transform(chunk),
             self.chunk_transform(orig_chunk),
             self.metadata_transform(metadata),
-            chunk_obj,
+            asdict(chunk_obj),
         )
 
 
