@@ -7,7 +7,6 @@ from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
 from .crosslid import compute_crosslid
-from .fid import compute_fid
 from .models.discriminator import WrapperInception
 
 
@@ -274,11 +273,6 @@ class GANModule(pl.LightningModule):
         orig_features = self.wrapper_inception(chunks)
         orig_crosslid = self.crosslid(orig_features, y_features)
 
-        # select features for fid
-        idx = torch.randperm(chunks.size(0))[: self.num_samples]
-        fid = compute_fid(y_features[idx], y_hat_features[idx])
-        orig_fid = compute_fid(y_features[idx], orig_features[idx])
-
         transformed_enhacned = self.psnr_transform(enhanced)
         transformed_orig = self.psnr_transform(orig_chunks)
         transformed_chunks = self.psnr_transform(chunks)
@@ -307,8 +301,6 @@ class GANModule(pl.LightningModule):
                 "test_d_loss": d_loss,
                 "test_crosslid": crosslid,
                 "test_ref_crosslid": orig_crosslid,
-                "test_fid": fid,
-                "test_ref_fid": orig_fid,
                 "test_psnr": enhanced_psnr,
                 "test_ref_psnr": orig_psnr,
                 "test_ssim": enhanced_ssim,
