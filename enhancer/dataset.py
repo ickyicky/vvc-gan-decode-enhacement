@@ -53,11 +53,11 @@ def chunk_from_tuple(data: Tuple) -> Chunk:
             file=data[3],
             profile=data[4],
             qp=data[5],
-            alf=data[6],
-            sao=data[7],
-            db=data[8],
+            alf=bool(data[6]),
+            sao=bool(data[7]),
+            db=bool(data[8]),
             frame=data[9],
-            is_intra=data[10],
+            is_intra=bool(data[10]),
         ),
     )
 

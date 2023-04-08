@@ -315,7 +315,8 @@ class GANModule(pl.LightningModule):
         # ENHANCE!
         enhanced = self(chunks, metadata)
 
-        for chunk, chunk_data in zip(enhanced, chunk_objs):
+        for i, chunk_data in enumerate(enhanced):
+            chunk = [c[i].cpu() if hasattr(c[i], "cpu") else c[i] for c in chunk_objs]
             VVCDataset.save_chunk(chunk, chunk_data.cpu().numpy())
 
     def configure_optimizers(self):
