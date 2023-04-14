@@ -125,35 +125,6 @@ class VVCDataset(torch.utils.data.Dataset):
         )
         return chunk
 
-    def mask_for(self, chunk: Chunk) -> Any:
-        mask = np.ones((self.chunk_height, self.chunk_width))
-
-        if "u" not in chunk.corner:
-            mask[0] = 0.2
-            mask[1] = 0.4
-            mask[2] = 0.6
-            mask[3] = 0.8
-
-        if "b" not in chunk.corner:
-            mask[-1] = 0.2
-            mask[-2] = 0.4
-            mask[-3] = 0.6
-            mask[-4] = 0.8
-
-        if "l" not in chunk.corner:
-            mask[:, 0] = 0.2
-            mask[:, 1] = np.minimum(mask[:, 1], 0.4)
-            mask[:, 2] = np.minimum(mask[:, 2], 0.6)
-            mask[:, 3] = np.minimum(mask[:, 3], 0.8)
-
-        if "r" not in chunk.corner:
-            mask[:, -1] = 0.2
-            mask[:, -2] = np.minimum(mask[:, -2], 0.4)
-            mask[:, -3] = np.minimum(mask[:, -3], 0.6)
-            mask[:, -4] = np.minimum(mask[:, -4], 0.8)
-
-        return mask
-
     def load_chunk(self, chunk: Chunk) -> Tuple[Any, Any, Any]:
         chunk_path = self.CHUNK_NAME.format_map(
             dict(**asdict(chunk), **asdict(chunk.metadata))
@@ -171,10 +142,6 @@ class VVCDataset(torch.utils.data.Dataset):
         with open(orig_chunk_path, "rb") as f:
             orig_chunk = np.frombuffer(f.read(), dtype=np.uint8)
             orig_chunk = np.resize(orig_chunk, (self.chunk_height, self.chunk_width, 3))
-            mask = self.mask_for(chunk)
-            orig_chunk[:, :, 0] = orig_chunk[:, :, 0] * mask
-            orig_chunk[:, :, 1] = orig_chunk[:, :, 1] * mask
-            orig_chunk[:, :, 2] = orig_chunk[:, :, 2] * mask
 
         return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 
