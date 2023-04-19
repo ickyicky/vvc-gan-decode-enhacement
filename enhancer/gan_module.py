@@ -111,7 +111,9 @@ class GANModule(pl.LightningModule):
             valid = torch.ones(orig_chunks.size(0), 1)
             valid = valid.type_as(orig_chunks)
 
-            real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
+            real_loss = self.adversarial_loss(
+                self.discriminator(orig_chunks - chunks), valid
+            )
 
             # how well can it label as fake?
             fake = torch.zeros(orig_chunks.size(0), 1)
@@ -146,26 +148,29 @@ class GANModule(pl.LightningModule):
         if batch_idx % 20 == 0:
             self.logger.experiment.log(
                 {
-                    "validation_enhanced": [
+                    "validation_mask": [
                         wandb.Image(x, caption=f"Pred: {pred.item()}")
                         for x, pred in zip(
                             enhanced[: self.num_samples],
                             preds.cpu()[: self.num_samples],
                         )
                     ],
-                    "validation_uncompressed": [
-                        wandb.Image(x, caption=f"uncompressed image {i}")
-                        for i, x in enumerate(orig_chunks[: self.num_samples])
-                    ],
-                    "validation_decompressed": [
-                        wandb.Image(x, caption=f"decompressed image {i}")
-                        for i, x in enumerate(chunks[: self.num_samples])
+                    "validation_diff": [
+                        wandb.Image(x - y, caption=f"uncompressed image {i}")
+                        for i, (x, y) in enumerate(
+                            zip(
+                                orig_chunks[: self.num_samples],
+                                chunks[: self.num_samples],
+                            )
+                        )
                     ],
                 }
             )
 
-        real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
-        y_features = self.wrapper_inception(orig_chunks)
+        real_loss = self.adversarial_loss(
+            self.discriminator(orig_chunks - chunks), valid
+        )
+        y_features = self.wrapper_inception(orig_chunks - chunks)
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -179,12 +184,11 @@ class GANModule(pl.LightningModule):
         # calculate crosslid
         crosslid = self.crosslid(y_hat_features, y_features)
 
-        self.adversarial_loss(self.discriminator(chunks), fake)
-        orig_features = self.wrapper_inception(chunks)
+        orig_features = self.wrapper_inception(orig_chunks - chunks)
         orig_crosslid = self.crosslid(orig_features, y_features)
 
         # calculate psnr, ssim,
-        transformed_enhacned = self.psnr_transform(enhanced)
+        transformed_enhacned = self.psnr_transform(chunks + enhanced)
         transformed_orig = self.psnr_transform(orig_chunks)
         transformed_chunks = self.psnr_transform(chunks)
 
