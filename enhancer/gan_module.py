@@ -82,24 +82,23 @@ class GANModule(pl.LightningModule):
             self.log("g_loss", g_loss, prog_bar=True)
 
             if batch_idx % 100 == 0:
+                log = {"enhanced": [], "uncompressed": [], "decompressed": []}
+                for i in range(self.num_samples):
+                    enh = enhanced[i].cpu()
+                    orig = orig_chunks[i].cpu()
+                    dec = chunks[i].cpu()
+
+                    log["enhanced"].append(
+                        wandb.Image(dec + enh, caption=f"Pred: {preds[i].item()}")
+                    )
+                    log["uncompressed"].append(
+                        wandb.Image(orig, caption=f"uncompressed image {i}")
+                    )
+                    log["decompressed"].append(
+                        wandb.Image(dec, caption=f"decompressed image {i}")
+                    )
                 self.logger.experiment.log(
-                    {
-                        "enhanced": [
-                            wandb.Image(x, caption=f"Pred: {pred.item()}")
-                            for x, pred in zip(
-                                enhanced[: self.num_samples].cpu(),
-                                preds.cpu()[: self.num_samples],
-                            )
-                        ],
-                        "uncompressed": [
-                            wandb.Image(x, caption=f"uncompressed image {i}")
-                            for i, x in enumerate(orig_chunks[: self.num_samples].cpu())
-                        ],
-                        "decompressed": [
-                            wandb.Image(x, caption=f"decompressed image {i}")
-                            for i, x in enumerate(chunks[: self.num_samples].cpu())
-                        ],
-                    }
+                    log
                 )
             return g_loss
 
@@ -146,25 +145,23 @@ class GANModule(pl.LightningModule):
         g_loss = self.adversarial_loss(preds, valid)
 
         if batch_idx % 20 == 0:
+            log = {"enhanced": [], "uncompressed": [], "decompressed": []}
+            for i in range(self.num_samples):
+                enh = enhanced[i].cpu()
+                orig = orig_chunks[i].cpu()
+                dec = chunks[i].cpu()
+
+                log["enhanced"].append(
+                    wandb.Image(dec + enh, caption=f"Pred: {preds[i].item()}")
+                )
+                log["uncompressed"].append(
+                    wandb.Image(orig, caption=f"uncompressed image {i}")
+                )
+                log["decompressed"].append(
+                    wandb.Image(dec, caption=f"decompressed image {i}")
+                )
             self.logger.experiment.log(
-                {
-                    "validation_mask": [
-                        wandb.Image(x, caption=f"Pred: {pred.item()}")
-                        for x, pred in zip(
-                            enhanced[: self.num_samples],
-                            preds.cpu()[: self.num_samples],
-                        )
-                    ],
-                    "validation_diff": [
-                        wandb.Image(x - y, caption=f"uncompressed image {i}")
-                        for i, (x, y) in enumerate(
-                            zip(
-                                orig_chunks[: self.num_samples],
-                                chunks[: self.num_samples],
-                            )
-                        )
-                    ],
-                }
+                {f"validation_{k}": v for k, v in log.items()}
             )
 
         real_loss = self.adversarial_loss(
@@ -241,24 +238,23 @@ class GANModule(pl.LightningModule):
         g_loss = self.adversarial_loss(preds, valid)
 
         if batch_idx % 20 == 0:
+            log = {"enhanced": [], "uncompressed": [], "decompressed": []}
+            for i in range(self.num_samples):
+                enh = enhanced[i].cpu()
+                orig = orig_chunks[i].cpu()
+                dec = chunks[i].cpu()
+
+                log["enhanced"].append(
+                    wandb.Image(dec + enh, caption=f"Pred: {preds[i].item()}")
+                )
+                log["uncompressed"].append(
+                    wandb.Image(orig, caption=f"uncompressed image {i}")
+                )
+                log["decompressed"].append(
+                    wandb.Image(dec, caption=f"decompressed image {i}")
+                )
             self.logger.experiment.log(
-                {
-                    "test_enhanced": [
-                        wandb.Image(x, caption=f"Pred: {pred.item()}")
-                        for x, pred in zip(
-                            enhanced[: self.num_samples],
-                            preds.cpu()[: self.num_samples],
-                        )
-                    ],
-                    "test_uncompressed": [
-                        wandb.Image(x, caption=f"uncompressed image {i}")
-                        for i, x in enumerate(orig_chunks[: self.num_samples])
-                    ],
-                    "test_decompressed": [
-                        wandb.Image(x, caption=f"decompressed image {i}")
-                        for i, x in enumerate(chunks[: self.num_samples])
-                    ],
-                }
+                {f"test_{k}": v for k, v in log.items()}
             )
 
         real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
