@@ -16,6 +16,7 @@ class DenseLayer(nn.Module):
         stride: int = 1,
         padding: int = 1,
         bn_size: Optional[int] = None,
+        no_bn: bool = False,
     ) -> None:
         """__init__.
 
@@ -35,13 +36,18 @@ class DenseLayer(nn.Module):
         """
         super().__init__()
 
-        parts = []
+        if no_bn:
+            parts = [
+                nn.BatchNorm2d(num_input_features),
+                nn.PReLU(),
+            ]
+        else:
+            parts = []
+
         num_features = num_input_features
 
         if bn_size is not None:
             parts = [
-                nn.BatchNorm2d(num_input_features),
-                nn.PReLU(),
                 nn.Conv2d(
                     num_features,
                     bn_size * growth_rate,
@@ -51,11 +57,14 @@ class DenseLayer(nn.Module):
                 ),
             ]
             num_features = bn_size * growth_rate
+            if no_bn is False:
+                parts += [
+                    nn.BatchNorm2d(num_features),
+                    nn.PReLU(),
+                ]
 
         self.model = nn.Sequential(
             *parts,
-            nn.BatchNorm2d(num_features),
-            nn.PReLU(),
             nn.Conv2d(
                 num_features,
                 growth_rate,
@@ -89,6 +98,7 @@ class DenseBlock(nn.Module):
         stride: int = 1,
         padding: int = 1,
         bn_size: Optional[int] = None,
+        no_bn: bool = False,
     ) -> None:
         """__init__.
 
@@ -113,7 +123,7 @@ class DenseBlock(nn.Module):
         layers = []
         num_features = num_input_features
 
-        for _ in range(num_layers):
+        for i in range(num_layers):
             layers.append(
                 DenseLayer(
                     num_input_features=num_features,
@@ -122,6 +132,7 @@ class DenseBlock(nn.Module):
                     stride=stride,
                     padding=padding,
                     bn_size=bn_size,
+                    no_bn=no_bn and i == 0,
                 )
             )
             num_features += growth_rate
@@ -256,10 +267,11 @@ class Enhancer(nn.Module):
         self,
         nc: int = 3,
         size: int = 132,
-        initial_features: int = 64,
+        initial_features: int = 9,
         metadata_size: int = 6,
         metadata_features: int = 6,
         structure=(
+            (9, 4, 0, 0, 0, 1, 64, "same"),
             (7, 3, 0, 0, 0, 1, 48, "same"),
             (5, 2, 0, 0, 0, 1, 32, "same"),
             (3, 1, 0, 0, 0, 1, 32, "same"),
@@ -275,18 +287,11 @@ class Enhancer(nn.Module):
             size=size,
         )
 
-        self.input_encoder = nn.Conv2d(
-            nc + metadata_features,
-            initial_features,
-            kernel_size=9,
-            padding=4,
-        )
-
         num_features = initial_features
 
         # dense blocks
         dense_blocks = []
-        for (
+        for i, (
             kernel_size,
             padding,
             tr_kernel_size,
@@ -295,7 +300,7 @@ class Enhancer(nn.Module):
             num_layers,
             growth_rate,
             transition,
-        ) in structure:
+        ) in enumerate(structure):
             dense_blocks.append(
                 DenseBlock(
                     num_input_features=num_features,
@@ -303,6 +308,7 @@ class Enhancer(nn.Module):
                     kernel_size=kernel_size,
                     padding=padding,
                     num_layers=num_layers,
+                    no_bn=i == 0,
                 )
             )
             num_features += growth_rate * num_layers
@@ -340,9 +346,9 @@ class Enhancer(nn.Module):
     def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
         encoded_metadata = self.metadata_encoder(metadata)
         data = torch.cat((input_, encoded_metadata), 1)
-        data = self.input_encoder(data)
         data = self.dense_blocks(data)
-        return self.output_block(data)
+        output = self.output_block(data)
+        return torch.add(input_, output)
 
 
 if __name__ == "__main__":

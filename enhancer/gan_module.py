@@ -9,6 +9,7 @@ from typing import Tuple
 from .crosslid import compute_crosslid
 from .models.discriminator import WrapperInception
 from .dataset import VVCDataset
+from pytorch_msssim import SSIM, MS_SSIM
 
 
 class GANModule(pl.LightningModule):
@@ -17,7 +18,7 @@ class GANModule(pl.LightningModule):
         enhancer,
         discriminator,
         enhancer_lr: float = 2e-4,
-        discriminator_lr: float = 1e-5,
+        discriminator_lr: float = 5e-5,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
     ):
@@ -34,16 +35,12 @@ class GANModule(pl.LightningModule):
         self.betas = betas
 
         self.num_samples = num_samples
+        self.ssim = SSIM(data_range=1.0, win_size=9)
+        self.msssim = MS_SSIM(data_range=1.0, win_size=9)
 
     def psnr_transform(self, output):
         # crop removes area that is gradiented
-        return crop(
-            output,
-            4,
-            4,
-            124,
-            124,
-        )
+        return output
 
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
@@ -78,6 +75,9 @@ class GANModule(pl.LightningModule):
             # adversarial loss is binary cross-entropy
             preds = self.discriminator(enhanced)
             g_loss = self.adversarial_loss(preds, valid)
+            ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
+            msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
+            g_loss = 0.4 * g_loss + 0.4 * msssim_loss + 0.2 * ssim_loss
 
             self.log("g_loss", g_loss, prog_bar=True)
 
@@ -97,9 +97,7 @@ class GANModule(pl.LightningModule):
                     log["decompressed"].append(
                         wandb.Image(dec, caption=f"decompressed image {i}")
                     )
-                self.logger.experiment.log(
-                    log
-                )
+                self.logger.experiment.log(log)
             return g_loss
 
         # train discriminator
@@ -110,9 +108,7 @@ class GANModule(pl.LightningModule):
             valid = torch.ones(orig_chunks.size(0), 1)
             valid = valid.type_as(orig_chunks)
 
-            real_loss = self.adversarial_loss(
-                self.discriminator(orig_chunks - chunks), valid
-            )
+            real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
 
             # how well can it label as fake?
             fake = torch.zeros(orig_chunks.size(0), 1)
@@ -143,6 +139,9 @@ class GANModule(pl.LightningModule):
         y_hat_features = self.wrapper_inception(enhanced)
 
         g_loss = self.adversarial_loss(preds, valid)
+        ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
+        msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
+        g_loss = 0.4 * g_loss + 0.4 * msssim_loss + 0.2 * ssim_loss
 
         if batch_idx % 20 == 0:
             log = {"enhanced": [], "uncompressed": [], "decompressed": []}
@@ -152,7 +151,7 @@ class GANModule(pl.LightningModule):
                 dec = chunks[i].cpu()
 
                 log["enhanced"].append(
-                    wandb.Image(dec + enh, caption=f"Pred: {preds[i].item()}")
+                    wandb.Image(enh, caption=f"Pred: {preds[i].item()}")
                 )
                 log["uncompressed"].append(
                     wandb.Image(orig, caption=f"uncompressed image {i}")
@@ -160,14 +159,10 @@ class GANModule(pl.LightningModule):
                 log["decompressed"].append(
                     wandb.Image(dec, caption=f"decompressed image {i}")
                 )
-            self.logger.experiment.log(
-                {f"validation_{k}": v for k, v in log.items()}
-            )
+            self.logger.experiment.log({f"validation_{k}": v for k, v in log.items()})
 
-        real_loss = self.adversarial_loss(
-            self.discriminator(orig_chunks - chunks), valid
-        )
-        y_features = self.wrapper_inception(orig_chunks - chunks)
+        real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
+        y_features = self.wrapper_inception(orig_chunks)
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -181,11 +176,11 @@ class GANModule(pl.LightningModule):
         # calculate crosslid
         crosslid = self.crosslid(y_hat_features, y_features)
 
-        orig_features = self.wrapper_inception(orig_chunks - chunks)
+        orig_features = self.wrapper_inception(orig_chunks)
         orig_crosslid = self.crosslid(orig_features, y_features)
 
         # calculate psnr, ssim,
-        transformed_enhacned = self.psnr_transform(chunks + enhanced)
+        transformed_enhacned = self.psnr_transform(enhanced)
         transformed_orig = self.psnr_transform(orig_chunks)
         transformed_chunks = self.psnr_transform(chunks)
 
@@ -245,7 +240,7 @@ class GANModule(pl.LightningModule):
                 dec = chunks[i].cpu()
 
                 log["enhanced"].append(
-                    wandb.Image(dec + enh, caption=f"Pred: {preds[i].item()}")
+                    wandb.Image(enh, caption=f"Pred: {preds[i].item()}")
                 )
                 log["uncompressed"].append(
                     wandb.Image(orig, caption=f"uncompressed image {i}")
@@ -253,9 +248,7 @@ class GANModule(pl.LightningModule):
                 log["decompressed"].append(
                     wandb.Image(dec, caption=f"decompressed image {i}")
                 )
-            self.logger.experiment.log(
-                {f"test_{k}": v for k, v in log.items()}
-            )
+            self.logger.experiment.log({f"test_{k}": v for k, v in log.items()})
 
         real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
         y_features = self.wrapper_inception(orig_chunks)

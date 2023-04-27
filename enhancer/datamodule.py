@@ -64,10 +64,10 @@ class VVCDataModule(pl.LightningDataModule):
         test_orig_chunk_folder: Optional[str] = None,
         chunk_height: int = 132,
         chunk_width: int = 132,
-        batch_size: int = 8,
+        batch_size: int = 32,
         val_batch_size: int = 96,
         test_batch_size: int = 96,
-        n_step: int = 1000,
+        n_step: int = 300,
         n_step_valid: int = 5,
     ):
         """__init__.
