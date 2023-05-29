@@ -15,7 +15,6 @@ class DenseLayer(nn.Module):
         kernel_size: int = 3,
         stride: int = 1,
         padding: int = 1,
-        bn_size: Optional[int] = None,
         no_bn: bool = False,
     ) -> None:
         """__init__.
@@ -30,8 +29,6 @@ class DenseLayer(nn.Module):
         :type stride: int
         :param padding:
         :type padding: int
-        :param bn_size:
-        :type bn_size: Optional[int]
         :rtype: None
         """
         super().__init__()
@@ -46,31 +43,17 @@ class DenseLayer(nn.Module):
 
         num_features = num_input_features
 
-        if bn_size is not None:
-            parts = [
-                nn.Conv2d(
-                    num_features,
-                    bn_size * growth_rate,
-                    kernel_size=1,
-                    stride=1,
-                    bias=False,
-                ),
-            ]
-            num_features = bn_size * growth_rate
-            if no_bn is False:
-                parts += [
-                    nn.BatchNorm2d(num_features),
-                    nn.PReLU(),
-                ]
-
         self.model = nn.Sequential(
             *parts,
+            nn.ReflectionPad2d(
+                padding,
+            ),
             nn.Conv2d(
                 num_features,
                 growth_rate,
                 kernel_size=kernel_size,
                 stride=stride,
-                padding=padding,
+                padding=0,
                 bias=False,
             ),
         )
@@ -97,7 +80,6 @@ class DenseBlock(nn.Module):
         kernel_size: int = 3,
         stride: int = 1,
         padding: int = 1,
-        bn_size: Optional[int] = None,
         no_bn: bool = False,
     ) -> None:
         """__init__.
@@ -114,8 +96,6 @@ class DenseBlock(nn.Module):
         :type stride: int
         :param padding:
         :type padding: int
-        :param bn_size:
-        :type bn_size: Optional[int]
         :rtype: None
         """
         super().__init__()
@@ -131,7 +111,6 @@ class DenseBlock(nn.Module):
                     kernel_size=kernel_size,
                     stride=stride,
                     padding=padding,
-                    bn_size=bn_size,
                     no_bn=no_bn and i == 0,
                 )
             )
@@ -271,12 +250,9 @@ class Enhancer(nn.Module):
         metadata_size: int = 6,
         metadata_features: int = 6,
         structure=(
-            (9, 4, 0, 0, 0, 1, 64, "same"),
-            (7, 3, 0, 0, 0, 1, 48, "same"),
-            (5, 2, 0, 0, 0, 1, 32, "same"),
-            (3, 1, 0, 0, 0, 1, 32, "same"),
+            (9, 4, 0, 0, 0, 4, 16, "same"),
+            (7, 3, 0, 0, 0, 3, 16, "same"),
             (3, 1, 0, 0, 0, 2, 16, "same"),
-            (3, 1, 0, 0, 0, 1, 16, "same"),
         ),
     ) -> None:
         super().__init__()
@@ -330,7 +306,7 @@ class Enhancer(nn.Module):
 
         # output part
         self.output_block = nn.Sequential(
-            nn.Conv2d(num_features, nc, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(num_features, nc, kernel_size=5, stride=1, padding=2),
         )
 
         # Official init from torch repo.

@@ -17,8 +17,8 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 2e-4,
-        discriminator_lr: float = 5e-5,
+        enhancer_lr: float = 1e-4,
+        discriminator_lr: float = 3e-6,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
     ):
@@ -77,7 +77,8 @@ class GANModule(pl.LightningModule):
             g_loss = self.adversarial_loss(preds, valid)
             ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
             msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
-            g_loss = 0.4 * g_loss + 0.4 * msssim_loss + 0.2 * ssim_loss
+            mse_loss = F.mse_loss(enhanced, orig_chunks)
+            g_loss = 0.4 * g_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
 
             self.log("g_loss", g_loss, prog_bar=True)
 
@@ -141,7 +142,8 @@ class GANModule(pl.LightningModule):
         g_loss = self.adversarial_loss(preds, valid)
         ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
         msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
-        g_loss = 0.4 * g_loss + 0.4 * msssim_loss + 0.2 * ssim_loss
+        mse_loss = F.mse_loss(enhanced, orig_chunks)
+        g_loss = 0.4 * g_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
 
         if batch_idx % 20 == 0:
             log = {"enhanced": [], "uncompressed": [], "decompressed": []}
@@ -326,25 +328,4 @@ class GANModule(pl.LightningModule):
             weight_decay=0.01,
         )
 
-        lr_schedulers = [
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_d,
-                    milestones=[30, 60, 90],
-                    gamma=0.1,
-                ),
-                "interval": "epoch",
-                "frequency": 1,
-            },
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_g,
-                    milestones=[30, 60, 90],
-                    gamma=0.1,
-                ),
-                "interval": "epoch",
-                "frequency": 1,
-            },
-        ]
-
-        return [opt_g, opt_d], lr_schedulers
+        return [opt_g, opt_d], []
