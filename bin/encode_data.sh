@@ -8,11 +8,12 @@ QP=${2}
 ALF=${3}
 DB=${4}
 SAO=${5}
-FILE="data/${6}"
+FILE="${6}"
+ODIR="${7}"
 
 print_usage() {
 	echo "USAGE:"
-	echo "./bin/encode_data.sh PROFILE QP ALF DB SAO FILE"
+	echo "./bin/encode_data.sh PROFILE QP ALF DB SAO FILE ODIR"
 }
 
 [[ -z "$PROFILE" ]] && { print_usage; exit 1; }
@@ -21,15 +22,14 @@ print_usage() {
 [[ -z "$DB" ]] && { print_usage; exit 1; }
 [[ -z "$SAO" ]] && { print_usage; exit 1; }
 [[ -z "$FILE" ]] && { print_usage; exit 1; }
+[[ -z "$ODIR" ]] && { print_usage; exit 1; }
 
-ODIR="encoded"
 ENCODER_APP="./vvenc/bin/release-static/vvencFFapp"
 
 [[ -d "data" ]] || { echo "Make sure to fetch data into data folder first"; exit 1; }
 [[ -d "${ODIR}" ]] || { echo "Make sure to create ${ODIR} first"; exit 1; }
 
-ORIG_FILE="$(echo $FILE | cut -d "." -f 1).mkv"
-INFO_FILE="$(echo $FILE | cut -d "." -f 1).mkv.info"
+INFO_FILE="$(echo $FILE | cut -d "." -f 1).*.info"
 
 vval() {
 	grep "$1" $INFO_FILE \
@@ -40,7 +40,7 @@ vval() {
 WIDTH=$(vval "Width")
 HEIGHT=$(vval "Height")
 FRAMERATE=$(vval "Frame rate")
-END_FRAME=$(vval "Frame count")
+END_FRAME=64
 
 SUFFIX="${PROFILE}_QP${QP}_ALF${ALF}_DB${DB}_SAO${SAO}"
 DESTINATION="$(echo $FILE | cut -d "." -f 1 | cut -d "/" -f 2)_${SUFFIX}.vvc"

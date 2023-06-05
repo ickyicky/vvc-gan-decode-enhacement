@@ -11,29 +11,12 @@ import subprocess
 
 
 CHUNK_SIZE = 128 * 1024  # 128 KB
-DEFAULT_FOLDER = "data"
-BASE_URL = "https://storage.googleapis.com/ugc-dataset/original_videos"
+DEFAULT_FOLDER = "test_data"
+BASE_URL = "https://media.xiph.org/video/derf/y4m/"
 
 SELECTED_VIDEOS = [
-    "NewsClip/360P/NewsClip_360P-0ff8.mkv",
-    "NewsClip/720P/NewsClip_720P-2182.mkv",
-    "NewsClip/1080P/NewsClip_1080P-27fb.mkv",
-    "TelevisionClip/480P/TelevisionClip_480P-415c.mkv",
-    "TelevisionClip/720P/TelevisionClip_720P-4edb.mkv",
-    "TelevisionClip/1080P/TelevisionClip_1080P-3d10.mkv",
-    "HowTo/360P/HowTo_360P-127f.mkv",
-    "HowTo/720P/HowTo_720P-269e.mkv",
-    "HowTo/1080P/HowTo_1080P-13aa.mkv",
-    "Sports/720P/Sports_720P-4b69.mkv",
-    "Sports/1080P/Sports_1080P-3a3b.mkv",
-    "Sports/2160P/Sports_2160P-349c.mkv",
-    "MusicVideo/480P/MusicVideo_480P-7955.mkv",
-    "MusicVideo/720P/MusicVideo_720P-4895.mkv",
-    "MusicVideo/1080P/MusicVideo_1080P-2d1c.mkv",
-    "Lecture/480P/Lecture_480P-5cd7.mkv",
-    "Lecture/1080P/Lecture_1080P-1b5f.mkv",
-    "LiveMusic/480P/LiveMusic_480P-4f88.mkv",
-    "LiveMusic/1080P/LiveMusic_1080P-2930.mkv",
+    "Johnny_1280x720_60.y4m",
+    "tractor_1080p25.y4m",
 ]
 
 
@@ -54,9 +37,7 @@ def download_videos(target: str) -> None:
     for video in tqdm(SELECTED_VIDEOS):
         url = os.path.join(BASE_URL, video)
         print(f"downloading {video}...")
-        category, resolution, _ = video.split("/")
-
-        target_filename = os.path.join(target, f"{resolution}_{category}.mkv")
+        target_filename = os.path.join(target, video)
 
         if os.path.exists(target_filename):
             should_proceed = (

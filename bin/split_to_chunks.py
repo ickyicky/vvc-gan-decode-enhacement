@@ -4,6 +4,7 @@ import math
 import numpy as np
 import cv2
 import json
+import glob
 from tqdm import tqdm
 from typing import List, Tuple, Any, Dict, Optional
 from dataclasses import dataclass, asdict
@@ -45,10 +46,10 @@ class Splitter:
     INFO_WIDTH_REGEX: str = re.compile(r"^\s*Width\s*:\s*(\d+)\s*$")
     INFO_FRAMES_REGEX: str = re.compile(r"^\s*Frame count\s*:\s*(\d+)\s*$")
     ENCODED_REGEX: str = re.compile(
-        r"^(?P<name>\d+P_\w+)_(?P<profile>AI|RA)_QP(?P<qp>\d{2})_ALF(?P<alf>\d{1})_DB(?P<db>\d{1})_SAO(?P<sao>\d{1}).yuv"
+        "^(?P<name>[\d\s\w]+)_(?P<profile>AI|RA)_QP(?P<qp>\d{2})_ALF(?P<alf>\d{1})_DB(?P<db>\d{1})_SAO(?P<sao>\d{1}).yuv"
     )
 
-    METADATA_FORMAT: str = "{name}.mkv.info"
+    METADATA_FORMAT: str = "{name}.*.info"
     DECODED_FORMAT: str = "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}.yuv"
     DECODED_LOG_FORMAT: str = (
         "{file}_{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}.yuv.log"
@@ -164,9 +165,11 @@ class Splitter:
 
         height = width = frames = None
 
-        with open(
+        fname = glob.glob(
             os.path.join(self.data_path, self.METADATA_FORMAT.format_map(match_group))
-        ) as f:
+        )[0]
+
+        with open(fname) as f:
             for line in f.readlines():
                 h = re.match(self.INFO_HEIGHT_REGEX, line)
                 height = h.groups()[0] if h else height
@@ -179,7 +182,7 @@ class Splitter:
             file=match_group["name"],
             width=width,
             height=height,
-            frames=frames,
+            frames=64,
             profile=match_group["profile"],
             qp=match_group["qp"],
             alf=match_group["alf"],
@@ -283,14 +286,14 @@ class Splitter:
         Y = np.reshape(Y, (height, width))
 
         uv_size = width * height // 4
-        U = frame_buffer[i : i + uv_size]
-        U = np.reshape(U, (height // 2, width // 2))
-        U = cv2.resize(U, (width, height))
-
-        i += uv_size
-        V = frame_buffer[i:]
+        V = frame_buffer[i : i + uv_size]
         V = np.reshape(V, (height // 2, width // 2))
         V = cv2.resize(V, (width, height))
+
+        i += uv_size
+        U = frame_buffer[i:]
+        U = np.reshape(U, (height // 2, width // 2))
+        U = cv2.resize(U, (width, height))
 
         return np.dstack([Y, U, V])
 

@@ -2,12 +2,11 @@ import torch
 import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
+import numpy as np
 from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
-from .crosslid import compute_crosslid
-from .models.discriminator import WrapperInception
 from .dataset import VVCDataset
 from pytorch_msssim import SSIM, MS_SSIM
 
@@ -21,18 +20,26 @@ class GANModule(pl.LightningModule):
         discriminator_lr: float = 3e-6,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
+        enhancer_min_loss: float = 0.45,
+        discriminator_min_loss: float = 0.25,
+        probe: int = 10,
     ):
         super().__init__()
         self.save_hyperparameters()
 
         self.enhancer = enhancer
         self.discriminator = discriminator
-        self.wrapper_inception = WrapperInception(discriminator)
 
         self.enhancer_lr = enhancer_lr
         self.discriminator_lr = discriminator_lr
 
         self.betas = betas
+        self.discriminator_min_loss = discriminator_min_loss
+        self.enhancer_min_loss = enhancer_min_loss
+
+        self.enhancer_losses = [1.0]
+        self.discriminator_losses = [1.0]
+        self.probe = probe
 
         self.num_samples = num_samples
         self.ssim = SSIM(data_range=1.0, win_size=9)
@@ -46,23 +53,21 @@ class GANModule(pl.LightningModule):
         return self.enhancer(chunks, metadata)
 
     def adversarial_loss(self, y_hat, y):
-        return F.mse_loss(y_hat, y)
-
-    def crosslid(self, y_hat_features, y_features, without_mean=False):
-        b_size = y_features.shape[0]
-        return compute_crosslid(
-            y_hat_features.cpu(),
-            y_features.cpu(),
-            b_size,
-            b_size,
-            without_mean=without_mean,
-        )
+        return F.binary_cross_entropy(y_hat, y)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata, _ = batch
+        e_loss = np.mean(self.enhancer_losses)
+        d_loss = np.mean(self.discriminator_losses)
+
+        e_train = d_loss >= self.discriminator_min_loss
+        d_train = e_loss >= self.enhancer_min_loss
+
+        if not e_train and not d_train:
+            e_train = d_train = True
 
         # train ENHANCE!
-        if optimizer_idx == 0:
+        if optimizer_idx == 0 and e_train:
 
             # ENHANCE!
             enhanced = self(chunks, metadata)
@@ -74,13 +79,20 @@ class GANModule(pl.LightningModule):
 
             # adversarial loss is binary cross-entropy
             preds = self.discriminator(enhanced)
-            g_loss = self.adversarial_loss(preds, valid)
+            gd_loss = self.adversarial_loss(preds, valid)
             ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
             msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
             mse_loss = F.mse_loss(enhanced, orig_chunks)
-            g_loss = 0.4 * g_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
+            g_loss = gd_loss + msssim_loss + ssim_loss + mse_loss
+
+            self.enhancer_losses.append(gd_loss)
+            self.enhancer_losses = self.enhancer_losses[: self.probe]
 
             self.log("g_loss", g_loss, prog_bar=True)
+            self.log("g_d_loss", gd_loss, prog_bar=True)
+            self.log("g_ssim_loss", ssim_loss, prog_bar=False)
+            self.log("g_msssim_loss", msssim_loss, prog_bar=False)
+            self.log("g_mse_loss", mse_loss, prog_bar=False)
 
             if batch_idx % 100 == 0:
                 log = {"enhanced": [], "uncompressed": [], "decompressed": []}
@@ -102,7 +114,7 @@ class GANModule(pl.LightningModule):
             return g_loss
 
         # train discriminator
-        if optimizer_idx == 1:
+        if optimizer_idx == 1 and d_train:
 
             # Measure discriminator's ability to classify real from generated samples
             # how well can it label as real?
@@ -121,7 +133,17 @@ class GANModule(pl.LightningModule):
 
             # discriminator loss is the average of these
             d_loss = (real_loss + fake_loss) / 2
+
+            self.enhancer_losses.append(gd_loss)
+            self.enhancer_losses = self.enhancer_losses[: self.probe]
+
             self.log("d_loss", d_loss, prog_bar=True)
+            self.log("d_real_loss", real_loss, prog_bar=False)
+            self.log("d_fake_loss", fake_loss, prog_bar=False)
+
+            self.discriminator_losses.append(d_loss)
+            self.discriminator_losses = self.discriminator_losses[:10]
+
             return d_loss
 
     def validation_step(self, batch, batch_idx):
@@ -137,13 +159,13 @@ class GANModule(pl.LightningModule):
 
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
-        y_hat_features = self.wrapper_inception(enhanced)
 
-        g_loss = self.adversarial_loss(preds, valid)
+        preds = self.discriminator(enhanced)
+        gd_loss = self.adversarial_loss(preds, valid)
         ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
         msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
         mse_loss = F.mse_loss(enhanced, orig_chunks)
-        g_loss = 0.4 * g_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
+        g_loss = gd_loss + msssim_loss + ssim_loss + mse_loss
 
         if batch_idx % 20 == 0:
             log = {"enhanced": [], "uncompressed": [], "decompressed": []}
@@ -164,7 +186,6 @@ class GANModule(pl.LightningModule):
             self.logger.experiment.log({f"validation_{k}": v for k, v in log.items()})
 
         real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
-        y_features = self.wrapper_inception(orig_chunks)
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -174,12 +195,6 @@ class GANModule(pl.LightningModule):
 
         # discriminator loss is the average of these
         d_loss = (real_loss + fake_loss) / 2
-
-        # calculate crosslid
-        crosslid = self.crosslid(y_hat_features, y_features)
-
-        orig_features = self.wrapper_inception(orig_chunks)
-        orig_crosslid = self.crosslid(orig_features, y_features)
 
         # calculate psnr, ssim,
         transformed_enhacned = self.psnr_transform(enhanced)
@@ -207,9 +222,13 @@ class GANModule(pl.LightningModule):
         self.log_dict(
             {
                 "val_g_loss": g_loss,
+                "val_g_d_loss": gd_loss,
+                "val_g_ssim_loss": ssim_loss,
+                "val_g_msssim_loss": msssim_loss,
+                "val_g_mse_loss": mse_loss,
                 "val_d_loss": d_loss,
-                "val_crosslid": crosslid,
-                "val_ref_crosslid": orig_crosslid,
+                "val_d_real_loss": real_loss,
+                "val_d_fakeloss": fake_loss,
                 "val_psnr": enhanced_psnr,
                 "val_ref_psnr": orig_psnr,
                 "val_ssim": enhanced_ssim,
@@ -230,7 +249,6 @@ class GANModule(pl.LightningModule):
 
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
-        y_hat_features = self.wrapper_inception(enhanced)
 
         g_loss = self.adversarial_loss(preds, valid)
 
@@ -253,7 +271,6 @@ class GANModule(pl.LightningModule):
             self.logger.experiment.log({f"test_{k}": v for k, v in log.items()})
 
         real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
-        y_features = self.wrapper_inception(orig_chunks)
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -263,11 +280,6 @@ class GANModule(pl.LightningModule):
 
         # discriminator loss is the average of these
         d_loss = (real_loss + fake_loss) / 2
-
-        # calculate crosslid, this time as well for decompressed images
-        crosslid = self.crosslid(y_hat_features, y_features)
-        orig_features = self.wrapper_inception(chunks)
-        orig_crosslid = self.crosslid(orig_features, y_features)
 
         transformed_enhacned = self.psnr_transform(enhanced)
         transformed_orig = self.psnr_transform(orig_chunks)
@@ -295,8 +307,6 @@ class GANModule(pl.LightningModule):
             {
                 "test_g_loss": g_loss,
                 "test_d_loss": d_loss,
-                "test_crosslid": crosslid,
-                "test_ref_crosslid": orig_crosslid,
                 "test_psnr": enhanced_psnr,
                 "test_ref_psnr": orig_psnr,
                 "test_ssim": enhanced_ssim,
