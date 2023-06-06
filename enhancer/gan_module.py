@@ -3,7 +3,6 @@ import wandb
 import pytorch_lightning as pl
 import torch.nn.functional as F
 import numpy as np
-from torchvision.transforms.functional import crop
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
@@ -17,11 +16,13 @@ class GANModule(pl.LightningModule):
         enhancer,
         discriminator,
         enhancer_lr: float = 1e-4,
-        discriminator_lr: float = 3e-6,
+        discriminator_lr: float = 1e-5,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
-        enhancer_min_loss: float = 0.45,
-        discriminator_min_loss: float = 0.25,
+        enhancer_min_loss: float = 0.25,
+        discriminator_min_loss: float = 0.15,
+        enhancer_max_loss: float = 0.6,
+        discriminator_max_loss: float = 0.25,
         probe: int = 10,
     ):
         super().__init__()
@@ -36,6 +37,8 @@ class GANModule(pl.LightningModule):
         self.betas = betas
         self.discriminator_min_loss = discriminator_min_loss
         self.enhancer_min_loss = enhancer_min_loss
+        self.discriminator_max_loss = discriminator_max_loss
+        self.enhancer_max_loss = enhancer_max_loss
 
         self.enhancer_losses = [1.0]
         self.discriminator_losses = [1.0]
@@ -53,21 +56,25 @@ class GANModule(pl.LightningModule):
         return self.enhancer(chunks, metadata)
 
     def adversarial_loss(self, y_hat, y):
-        return F.binary_cross_entropy(y_hat, y)
+        return F.mse_loss(y_hat, y)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         chunks, orig_chunks, metadata, _ = batch
         e_loss = np.mean(self.enhancer_losses)
         d_loss = np.mean(self.discriminator_losses)
 
-        e_train = d_loss >= self.discriminator_min_loss
-        d_train = e_loss >= self.enhancer_min_loss
+        e_train = (
+            e_loss >= self.enhancer_min_loss and d_loss <= self.discriminator_max_loss
+        )
+        d_train = (
+            d_loss >= self.discriminator_min_loss and e_loss <= self.enhancer_max_loss
+        )
 
         if not e_train and not d_train:
             e_train = d_train = True
 
         # train ENHANCE!
-        if optimizer_idx == 0 and e_train:
+        if optimizer_idx == 0:
 
             # ENHANCE!
             enhanced = self(chunks, metadata)
@@ -83,9 +90,11 @@ class GANModule(pl.LightningModule):
             ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
             msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
             mse_loss = F.mse_loss(enhanced, orig_chunks)
-            g_loss = gd_loss + msssim_loss + ssim_loss + mse_loss
+            g_loss = (
+                0.4 + gd_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
+            )
 
-            self.enhancer_losses.append(gd_loss)
+            self.enhancer_losses.append(gd_loss.item())
             self.enhancer_losses = self.enhancer_losses[: self.probe]
 
             self.log("g_loss", g_loss, prog_bar=True)
@@ -93,6 +102,9 @@ class GANModule(pl.LightningModule):
             self.log("g_ssim_loss", ssim_loss, prog_bar=False)
             self.log("g_msssim_loss", msssim_loss, prog_bar=False)
             self.log("g_mse_loss", mse_loss, prog_bar=False)
+
+            if not e_train:
+                return
 
             if batch_idx % 100 == 0:
                 log = {"enhanced": [], "uncompressed": [], "decompressed": []}
@@ -134,15 +146,16 @@ class GANModule(pl.LightningModule):
             # discriminator loss is the average of these
             d_loss = (real_loss + fake_loss) / 2
 
-            self.enhancer_losses.append(gd_loss)
-            self.enhancer_losses = self.enhancer_losses[: self.probe]
+            self.discriminator_losses.append(d_loss.item())
+            self.discriminator_losses = self.discriminator_losses[: self.probe]
 
             self.log("d_loss", d_loss, prog_bar=True)
             self.log("d_real_loss", real_loss, prog_bar=False)
+
             self.log("d_fake_loss", fake_loss, prog_bar=False)
 
-            self.discriminator_losses.append(d_loss)
-            self.discriminator_losses = self.discriminator_losses[:10]
+            if not d_train:
+                return
 
             return d_loss
 
@@ -160,12 +173,7 @@ class GANModule(pl.LightningModule):
         # adversarial loss is binary cross-entropy
         preds = self.discriminator(enhanced)
 
-        preds = self.discriminator(enhanced)
-        gd_loss = self.adversarial_loss(preds, valid)
-        ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
-        msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
-        mse_loss = F.mse_loss(enhanced, orig_chunks)
-        g_loss = gd_loss + msssim_loss + ssim_loss + mse_loss
+        g_loss = self.adversarial_loss(preds, valid)
 
         if batch_idx % 20 == 0:
             log = {"enhanced": [], "uncompressed": [], "decompressed": []}
@@ -222,10 +230,6 @@ class GANModule(pl.LightningModule):
         self.log_dict(
             {
                 "val_g_loss": g_loss,
-                "val_g_d_loss": gd_loss,
-                "val_g_ssim_loss": ssim_loss,
-                "val_g_msssim_loss": msssim_loss,
-                "val_g_mse_loss": mse_loss,
                 "val_d_loss": d_loss,
                 "val_d_real_loss": real_loss,
                 "val_d_fakeloss": fake_loss,
@@ -338,4 +342,25 @@ class GANModule(pl.LightningModule):
             weight_decay=0.01,
         )
 
-        return [opt_g, opt_d], []
+        lr_schedulers = [
+            {
+                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                    opt_d,
+                    milestones=[50, 150],
+                    gamma=0.1,
+                ),
+                "interval": "step",
+                "frequency": 1,
+            },
+            {
+                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                    opt_g,
+                    milestones=[50, 150],
+                    gamma=0.1,
+                ),
+                "interval": "step",
+                "frequency": 1,
+            },
+        ]
+
+        return [opt_g, opt_d], lr_schedulers

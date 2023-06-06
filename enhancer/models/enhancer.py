@@ -324,7 +324,8 @@ class Enhancer(nn.Module):
         data = torch.cat((input_, encoded_metadata), 1)
         data = self.dense_blocks(data)
         output = self.output_block(data)
-        return torch.add(input_, output)
+        with_mask = torch.add(input_, output)
+        return with_mask
 
 
 if __name__ == "__main__":
@@ -332,6 +333,6 @@ if __name__ == "__main__":
 
     g = Enhancer()
     result = g(torch.rand((1, 3, 132, 132)), torch.rand((1, 6, 1, 1)))
-    print(result.shape)
+    print(result)
 
     summary(g, [(3, 132, 132), (6, 1, 1)], device="cpu")
