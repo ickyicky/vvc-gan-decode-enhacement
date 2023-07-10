@@ -15,8 +15,8 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 1e-4,
-        discriminator_lr: float = 1e-5,
+        enhancer_lr: float = 5e-4,
+        discriminator_lr: float = 2e-6,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
         enhancer_min_loss: float = 0.25,
@@ -26,6 +26,7 @@ class GANModule(pl.LightningModule):
         probe: int = 10,
     ):
         super().__init__()
+        self.automatic_optimization = False
         self.save_hyperparameters()
 
         self.enhancer = enhancer
@@ -58,7 +59,8 @@ class GANModule(pl.LightningModule):
     def adversarial_loss(self, y_hat, y):
         return F.mse_loss(y_hat, y)
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
+        g_opt, d_opt = self.optimizers()
         chunks, orig_chunks, metadata, _ = batch
         e_loss = np.mean(self.enhancer_losses)
         d_loss = np.mean(self.discriminator_losses)
@@ -74,38 +76,34 @@ class GANModule(pl.LightningModule):
             e_train = d_train = True
 
         # train ENHANCE!
-        if optimizer_idx == 0:
+        # ENHANCE!
+        enhanced = self(chunks, metadata)
 
-            # ENHANCE!
-            enhanced = self(chunks, metadata)
+        # ground truth result (ie: all fake)
+        # put on GPU because we created this tensor inside training_loop
+        valid = torch.ones(chunks.size(0), 1)
+        valid = valid.type_as(chunks)
 
-            # ground truth result (ie: all fake)
-            # put on GPU because we created this tensor inside training_loop
-            valid = torch.ones(chunks.size(0), 1)
-            valid = valid.type_as(chunks)
+        # adversarial loss is binary cross-entropy
+        preds = self.discriminator(enhanced)
+        gd_loss = self.adversarial_loss(preds, valid)
+        ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
+        msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
+        mse_loss = F.mse_loss(enhanced, orig_chunks)
+        g_loss = (
+            0.4 + gd_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
+        )
 
-            # adversarial loss is binary cross-entropy
-            preds = self.discriminator(enhanced)
-            gd_loss = self.adversarial_loss(preds, valid)
-            ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
-            msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
-            mse_loss = F.mse_loss(enhanced, orig_chunks)
-            g_loss = (
-                0.4 + gd_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
-            )
+        self.enhancer_losses.append(gd_loss.item())
+        self.enhancer_losses = self.enhancer_losses[: self.probe]
 
-            self.enhancer_losses.append(gd_loss.item())
-            self.enhancer_losses = self.enhancer_losses[: self.probe]
+        self.log("g_loss", g_loss, prog_bar=True)
+        self.log("g_d_loss", gd_loss, prog_bar=True)
+        self.log("g_ssim_loss", ssim_loss, prog_bar=False)
+        self.log("g_msssim_loss", msssim_loss, prog_bar=False)
+        self.log("g_mse_loss", mse_loss, prog_bar=False)
 
-            self.log("g_loss", g_loss, prog_bar=True)
-            self.log("g_d_loss", gd_loss, prog_bar=True)
-            self.log("g_ssim_loss", ssim_loss, prog_bar=False)
-            self.log("g_msssim_loss", msssim_loss, prog_bar=False)
-            self.log("g_mse_loss", mse_loss, prog_bar=False)
-
-            if not e_train:
-                return
-
+        if e_train:
             if batch_idx % 100 == 0:
                 log = {"enhanced": [], "uncompressed": [], "decompressed": []}
                 for i in range(self.num_samples):
@@ -123,10 +121,13 @@ class GANModule(pl.LightningModule):
                         wandb.Image(dec, caption=f"decompressed image {i}")
                     )
                 self.logger.experiment.log(log)
-            return g_loss
+
+            g_opt.zero_grad()
+            self.manual_backward(g_loss)
+            g_opt.step()
 
         # train discriminator
-        if optimizer_idx == 1 and d_train:
+        if d_train:
 
             # Measure discriminator's ability to classify real from generated samples
             # how well can it label as real?
@@ -154,10 +155,13 @@ class GANModule(pl.LightningModule):
 
             self.log("d_fake_loss", fake_loss, prog_bar=False)
 
-            if not d_train:
-                return
+            d_opt.zero_grad()
+            self.manual_backward(d_loss)
+            d_opt.step()
 
-            return d_loss
+        sch1, sch2 = self.lr_schedulers()
+        sch1.step()
+        sch2.step()
 
     def validation_step(self, batch, batch_idx):
         chunks, orig_chunks, metadata, _ = batch
@@ -346,19 +350,19 @@ class GANModule(pl.LightningModule):
             {
                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                     opt_d,
-                    milestones=[50, 150],
+                    milestones=[10, 50, 150, 500],
                     gamma=0.1,
                 ),
-                "interval": "step",
+                "interval": "epoch",
                 "frequency": 1,
             },
             {
                 "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                     opt_g,
-                    milestones=[50, 150],
+                    milestones=[10, 50, 150, 500],
                     gamma=0.1,
                 ),
-                "interval": "step",
+                "interval": "epoch",
                 "frequency": 1,
             },
         ]

@@ -252,7 +252,8 @@ class Enhancer(nn.Module):
         structure=(
             (9, 4, 0, 0, 0, 4, 16, "same"),
             (7, 3, 0, 0, 0, 3, 16, "same"),
-            (3, 1, 0, 0, 0, 2, 16, "same"),
+            (5, 2, 0, 0, 0, 3, 16, "same"),
+            (3, 1, 0, 0, 0, 4, 16, "same"),
         ),
     ) -> None:
         super().__init__()
