@@ -76,7 +76,7 @@ if __name__ == "__main__":
         default="gan",
         type=str,
         help="mode of operation",
-        enum=["gan", "enhancer", "discriminator"],
+        choices=["gan", "enhancer", "discriminator"],
     )
 
     args = parser.parse_args()
@@ -90,6 +90,7 @@ if __name__ == "__main__":
 
     if args.checkpoint:
         module = GANModule.load_from_checkpoint(args.checkpoint)
+        module.mode = args.mode
     else:
         enhancer = Enhancer()
         discriminator = Discriminator()
@@ -98,6 +99,7 @@ if __name__ == "__main__":
         module = GANModule(
             enhancer,
             discriminator,
+            mode=args.mode,
         )
 
     wandb_logger = WandbLogger(

@@ -24,6 +24,7 @@ class GANModule(pl.LightningModule):
         enhancer_max_loss: float = 0.6,
         discriminator_max_loss: float = 0.25,
         probe: int = 10,
+        mode: str = "gan",
     ):
         super().__init__()
         self.automatic_optimization = False
