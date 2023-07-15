@@ -394,4 +394,17 @@ class GANModule(pl.LightningModule):
             # },
         ]
 
+        if self.mode == "enhancer":
+            lr_schedulers = [
+                {
+                    "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                        opt_g,
+                        milestones=[5 * i for i in range(100)],
+                        gamma=0.1,
+                    ),
+                    "interval": "epoch",
+                    "frequency": 1,
+                },
+            ]
+
         return [opt_g, opt_d], lr_schedulers
