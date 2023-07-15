@@ -71,7 +71,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--mode",
-        "-d",
+        "-m",
         action="store",
         default="gan",
         type=str,
