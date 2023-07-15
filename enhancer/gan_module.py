@@ -362,7 +362,7 @@ class GANModule(pl.LightningModule):
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
             self.enhancer.parameters(),
-            lr=self.enhancer_lr,
+            lr=max(self.enhancer_lr, 0.001) if self.mode == "enhancer" else self.enhancer_lr,
             betas=self.betas,
             weight_decay=0.01,
         )
@@ -399,7 +399,7 @@ class GANModule(pl.LightningModule):
                 {
                     "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                         opt_g,
-                        milestones=[5 * i for i in range(100)],
+                        milestones=[10 * i for i in range(100)],
                         gamma=0.1,
                     ),
                     "interval": "epoch",
