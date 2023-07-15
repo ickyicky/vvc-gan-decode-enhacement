@@ -117,7 +117,6 @@ class GANModule(pl.LightningModule):
             else:
                 g_loss = 0.3 * msssim_loss + 0.3 * ssim_loss + 0.4 * mse_loss
 
-
             self.log("g_loss", g_loss, prog_bar=True)
 
             if e_train:
@@ -129,7 +128,7 @@ class GANModule(pl.LightningModule):
                         dec = chunks[i].cpu()
 
                         log["enhanced"].append(
-                            wandb.Image(dec + enh, caption=f"Pred: {preds[i].item()}")
+                            wandb.Image(enh, caption=f"Pred: {preds[i].item()}" if self.mode == "gan" else f"enhanced image {i}")
                         )
                         log["uncompressed"].append(
                             wandb.Image(orig, caption=f"uncompressed image {i}")
