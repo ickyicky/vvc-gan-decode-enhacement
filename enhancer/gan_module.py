@@ -50,7 +50,7 @@ class GANModule(pl.LightningModule):
         self.ssim = SSIM(data_range=1.0, win_size=9)
         self.msssim = MS_SSIM(data_range=1.0, win_size=9)
 
-        self.mode = "gan"
+        self.mode = mode
 
     def psnr_transform(self, output):
         # crop removes area that is gradiented
