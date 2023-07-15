@@ -250,10 +250,10 @@ class Enhancer(nn.Module):
         metadata_size: int = 6,
         metadata_features: int = 6,
         structure=(
-            (9, 4, 0, 0, 0, 4, 16, "same"),
-            (7, 3, 0, 0, 0, 3, 16, "same"),
-            (5, 2, 0, 0, 0, 3, 16, "same"),
-            (3, 1, 0, 0, 0, 4, 16, "same"),
+            (9, 4, 0, 0, 0, 1, 64, "same"),
+            (7, 3, 0, 0, 0, 1, 48, "same"),
+            (5, 2, 0, 0, 0, 1, 32, "same"),
+            (3, 1, 0, 0, 0, 1, 16, "same"),
         ),
     ) -> None:
         super().__init__()

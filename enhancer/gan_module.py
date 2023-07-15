@@ -15,12 +15,12 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 5e-4,
+        enhancer_lr: float = 1e-4,
         discriminator_lr: float = 2e-6,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
         enhancer_min_loss: float = 0.25,
-        discriminator_min_loss: float = 0.15,
+        discriminator_min_loss: float = 0.1,
         enhancer_max_loss: float = 0.6,
         discriminator_max_loss: float = 0.25,
         probe: int = 10,
@@ -77,6 +77,7 @@ class GANModule(pl.LightningModule):
 
         # train ENHANCE!
         # ENHANCE!
+        g_opt.zero_grad()
         enhanced = self(chunks, metadata)
 
         # ground truth result (ie: all fake)
@@ -91,7 +92,7 @@ class GANModule(pl.LightningModule):
         msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
         mse_loss = F.mse_loss(enhanced, orig_chunks)
         g_loss = (
-            0.4 + gd_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
+            0.4 * gd_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
         )
 
         self.enhancer_losses.append(gd_loss.item())
@@ -122,12 +123,12 @@ class GANModule(pl.LightningModule):
                     )
                 self.logger.experiment.log(log)
 
-            g_opt.zero_grad()
             self.manual_backward(g_loss)
             g_opt.step()
 
         # train discriminator
         if d_train:
+            d_opt.zero_grad()
 
             # Measure discriminator's ability to classify real from generated samples
             # how well can it label as real?
@@ -152,16 +153,22 @@ class GANModule(pl.LightningModule):
 
             self.log("d_loss", d_loss, prog_bar=True)
             self.log("d_real_loss", real_loss, prog_bar=False)
-
             self.log("d_fake_loss", fake_loss, prog_bar=False)
 
-            d_opt.zero_grad()
             self.manual_backward(d_loss)
             d_opt.step()
 
-        sch1, sch2 = self.lr_schedulers()
-        sch1.step()
-        sch2.step()
+    def on_train_epoch_end(self):
+        schs = self.lr_schedulers()
+
+        if schs is None:
+            return
+
+        if not isinstance(schs, (tuple, list)):
+            schs = [schs]
+
+        for sch in schs:
+            sch.step()
 
     def validation_step(self, batch, batch_idx):
         chunks, orig_chunks, metadata, _ = batch
@@ -347,24 +354,24 @@ class GANModule(pl.LightningModule):
         )
 
         lr_schedulers = [
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_d,
-                    milestones=[10, 50, 150, 500],
-                    gamma=0.1,
-                ),
-                "interval": "epoch",
-                "frequency": 1,
-            },
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_g,
-                    milestones=[10, 50, 150, 500],
-                    gamma=0.1,
-                ),
-                "interval": "epoch",
-                "frequency": 1,
-            },
+            # {
+            #     "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+            #         opt_d,
+            #         milestones=[10],
+            #         gamma=0.1,
+            #     ),
+            #     "interval": "epoch",
+            #     "frequency": 1,
+            # },
+            # {
+            #     "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+            #         opt_g,
+            #         milestones=[10],
+            #         gamma=0.1,
+            #     ),
+            #     "interval": "epoch",
+            #     "frequency": 1,
+            # },
         ]
 
         return [opt_g, opt_d], lr_schedulers
