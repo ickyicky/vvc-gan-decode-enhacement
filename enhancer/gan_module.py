@@ -112,11 +112,11 @@ class GANModule(pl.LightningModule):
                     0.4 * gd_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
                 )
                 self.log("g_d_loss", gd_loss, prog_bar=True)
+                self.enhancer_losses.append(gd_loss.item())
+                self.enhancer_losses = self.enhancer_losses[: self.probe]
             else:
                 g_loss = 0.3 * msssim_loss + 0.3 * ssim_loss + 0.4 * mse_loss
 
-            self.enhancer_losses.append(gd_loss.item())
-            self.enhancer_losses = self.enhancer_losses[: self.probe]
 
             self.log("g_loss", g_loss, prog_bar=True)
 
