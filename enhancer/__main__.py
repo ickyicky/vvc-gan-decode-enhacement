@@ -69,6 +69,15 @@ if __name__ == "__main__":
         action="store_true",
         help="number of epochs",
     )
+    parser.add_argument(
+        "--mode",
+        "-d",
+        action="store",
+        default="gan",
+        type=str,
+        help="mode of operation",
+        enum=["gan", "enhancer", "discriminator"],
+    )
 
     args = parser.parse_args()
 

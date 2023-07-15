@@ -49,6 +49,8 @@ class GANModule(pl.LightningModule):
         self.ssim = SSIM(data_range=1.0, win_size=9)
         self.msssim = MS_SSIM(data_range=1.0, win_size=9)
 
+        self.mode = "gan"
+
     def psnr_transform(self, output):
         # crop removes area that is gradiented
         return output
@@ -62,69 +64,82 @@ class GANModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         g_opt, d_opt = self.optimizers()
         chunks, orig_chunks, metadata, _ = batch
-        e_loss = np.mean(self.enhancer_losses)
-        d_loss = np.mean(self.discriminator_losses)
 
-        e_train = (
-            e_loss >= self.enhancer_min_loss and d_loss <= self.discriminator_max_loss
-        )
-        d_train = (
-            d_loss >= self.discriminator_min_loss and e_loss <= self.enhancer_max_loss
-        )
+        if self.mode == "enhancer":
+            e_train = True
+            d_train = False
+        elif self.mode == "discriminator":
+            e_train = False
+            d_train = True
+        else:
+            e_loss = np.mean(self.enhancer_losses)
+            d_loss = np.mean(self.discriminator_losses)
 
-        if not e_train and not d_train:
-            e_train = d_train = True
+            e_train = (
+                e_loss >= self.enhancer_min_loss and d_loss <= self.discriminator_max_loss
+            )
+            d_train = (
+                d_loss >= self.discriminator_min_loss and e_loss <= self.enhancer_max_loss
+            )
+
+            if not e_train and not d_train:
+                e_train = d_train = True
 
         # train ENHANCE!
         # ENHANCE!
-        g_opt.zero_grad()
-        enhanced = self(chunks, metadata)
+        if self.mode in ("enhancer", "gan"):
+            g_opt.zero_grad()
+            enhanced = self(chunks, metadata)
 
-        # ground truth result (ie: all fake)
-        # put on GPU because we created this tensor inside training_loop
-        valid = torch.ones(chunks.size(0), 1)
-        valid = valid.type_as(chunks)
+            # ground truth result (ie: all fake)
+            # put on GPU because we created this tensor inside training_loop
+            valid = torch.ones(chunks.size(0), 1)
+            valid = valid.type_as(chunks)
 
-        # adversarial loss is binary cross-entropy
-        preds = self.discriminator(enhanced)
-        gd_loss = self.adversarial_loss(preds, valid)
-        ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
-        msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
-        mse_loss = F.mse_loss(enhanced, orig_chunks)
-        g_loss = (
-            0.4 * gd_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
-        )
+            # adversarial loss is binary cross-entropy
+            ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
+            msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
+            mse_loss = F.mse_loss(enhanced, orig_chunks)
+            self.log("g_ssim_loss", ssim_loss, prog_bar=False)
+            self.log("g_msssim_loss", msssim_loss, prog_bar=False)
+            self.log("g_mse_loss", mse_loss, prog_bar=False)
 
-        self.enhancer_losses.append(gd_loss.item())
-        self.enhancer_losses = self.enhancer_losses[: self.probe]
+            if self.mode == "gan":
+                preds = self.discriminator(enhanced)
+                gd_loss = self.adversarial_loss(preds, valid)
+                g_loss = (
+                    0.4 * gd_loss + 0.2 * msssim_loss + 0.2 * ssim_loss + 0.2 * mse_loss
+                )
+                self.log("g_d_loss", gd_loss, prog_bar=True)
+            else:
+                g_loss = 0.3 * msssim_loss + 0.3 * ssim_loss + 0.4 * mse_loss
 
-        self.log("g_loss", g_loss, prog_bar=True)
-        self.log("g_d_loss", gd_loss, prog_bar=True)
-        self.log("g_ssim_loss", ssim_loss, prog_bar=False)
-        self.log("g_msssim_loss", msssim_loss, prog_bar=False)
-        self.log("g_mse_loss", mse_loss, prog_bar=False)
+            self.enhancer_losses.append(gd_loss.item())
+            self.enhancer_losses = self.enhancer_losses[: self.probe]
 
-        if e_train:
-            if batch_idx % 100 == 0:
-                log = {"enhanced": [], "uncompressed": [], "decompressed": []}
-                for i in range(self.num_samples):
-                    enh = enhanced[i].cpu()
-                    orig = orig_chunks[i].cpu()
-                    dec = chunks[i].cpu()
+            self.log("g_loss", g_loss, prog_bar=True)
 
-                    log["enhanced"].append(
-                        wandb.Image(dec + enh, caption=f"Pred: {preds[i].item()}")
-                    )
-                    log["uncompressed"].append(
-                        wandb.Image(orig, caption=f"uncompressed image {i}")
-                    )
-                    log["decompressed"].append(
-                        wandb.Image(dec, caption=f"decompressed image {i}")
-                    )
-                self.logger.experiment.log(log)
+            if e_train:
+                if batch_idx % 100 == 0:
+                    log = {"enhanced": [], "uncompressed": [], "decompressed": []}
+                    for i in range(self.num_samples):
+                        enh = enhanced[i].cpu()
+                        orig = orig_chunks[i].cpu()
+                        dec = chunks[i].cpu()
 
-            self.manual_backward(g_loss)
-            g_opt.step()
+                        log["enhanced"].append(
+                            wandb.Image(dec + enh, caption=f"Pred: {preds[i].item()}")
+                        )
+                        log["uncompressed"].append(
+                            wandb.Image(orig, caption=f"uncompressed image {i}")
+                        )
+                        log["decompressed"].append(
+                            wandb.Image(dec, caption=f"decompressed image {i}")
+                        )
+                    self.logger.experiment.log(log)
+
+                self.manual_backward(g_loss)
+                g_opt.step()
 
         # train discriminator
         if d_train:
@@ -141,9 +156,14 @@ class GANModule(pl.LightningModule):
             fake = torch.zeros(orig_chunks.size(0), 1)
             fake = fake.type_as(orig_chunks)
 
-            fake_loss = self.adversarial_loss(
-                self.discriminator(self(chunks, metadata).detach()), fake
-            )
+            if self.mode == "gan":
+                fake_loss = self.adversarial_loss(
+                    self.discriminator(self(chunks, metadata).detach()), fake
+                )
+            else:
+                fake_loss = self.adversarial_loss(
+                    self.discriminator(chunks), fake
+                )
 
             # discriminator loss is the average of these
             d_loss = (real_loss + fake_loss) / 2
