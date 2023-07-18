@@ -375,7 +375,7 @@ class GANModule(pl.LightningModule):
         )
         opt_d = torch.optim.Adam(
             self.discriminator.parameters(),
-            lr=self.discriminator_lr,
+            lr=max(self.discriminator_lr, 0.1),
             betas=self.betas,
             weight_decay=0.01,
         )
@@ -400,5 +400,18 @@ class GANModule(pl.LightningModule):
             #     "frequency": 1,
             # },
         ]
+
+        if self.mode == "discriminator":
+            lr_schedulers.append(
+                {
+                    "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                        opt_d,
+                        milestones=[10, 25, 50, 100],
+                        gamma=0.1,
+                    ),
+                    "interval": "epoch",
+                    "frequency": 1,
+                }
+            )
 
         return [opt_g, opt_d], lr_schedulers
