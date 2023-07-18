@@ -307,7 +307,7 @@ class Enhancer(nn.Module):
 
         # output part
         self.output_block = nn.Sequential(
-            nn.Conv2d(num_features, nc, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(num_features, nc, kernel_size=3, stride=1, padding=1),
         )
 
         # Official init from torch repo.
@@ -325,8 +325,9 @@ class Enhancer(nn.Module):
         data = torch.cat((input_, encoded_metadata), 1)
         data = self.dense_blocks(data)
         output = self.output_block(data)
-        with_mask = torch.add(input_, output)
-        return with_mask
+        return output
+        # with_mask = torch.add(input_, output)
+        # return with_mask
 
 
 if __name__ == "__main__":

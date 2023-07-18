@@ -77,10 +77,12 @@ class GANModule(pl.LightningModule):
             d_loss = np.mean(self.discriminator_losses)
 
             e_train = (
-                e_loss >= self.enhancer_min_loss and d_loss <= self.discriminator_max_loss
+                e_loss >= self.enhancer_min_loss
+                and d_loss <= self.discriminator_max_loss
             )
             d_train = (
-                d_loss >= self.discriminator_min_loss and e_loss <= self.enhancer_max_loss
+                d_loss >= self.discriminator_min_loss
+                and e_loss <= self.enhancer_max_loss
             )
 
             if not e_train and not d_train:
@@ -128,7 +130,12 @@ class GANModule(pl.LightningModule):
                         dec = chunks[i].cpu()
 
                         log["enhanced"].append(
-                            wandb.Image(enh, caption=f"Pred: {preds[i].item()}" if self.mode == "gan" else f"enhanced image {i}")
+                            wandb.Image(
+                                enh,
+                                caption=f"Pred: {preds[i].item()}"
+                                if self.mode == "gan"
+                                else f"enhanced image {i}",
+                            )
                         )
                         log["uncompressed"].append(
                             wandb.Image(orig, caption=f"uncompressed image {i}")
@@ -161,9 +168,7 @@ class GANModule(pl.LightningModule):
                     self.discriminator(self(chunks, metadata).detach()), fake
                 )
             else:
-                fake_loss = self.adversarial_loss(
-                    self.discriminator(chunks), fake
-                )
+                fake_loss = self.adversarial_loss(self.discriminator(chunks), fake)
 
             # discriminator loss is the average of these
             d_loss = (real_loss + fake_loss) / 2
@@ -362,7 +367,9 @@ class GANModule(pl.LightningModule):
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
             self.enhancer.parameters(),
-            lr=max(self.enhancer_lr, 0.001) if self.mode == "enhancer" else self.enhancer_lr,
+            lr=max(self.enhancer_lr, 0.001)
+            if self.mode == "enhancer"
+            else self.enhancer_lr,
             betas=self.betas,
             weight_decay=0.01,
         )
@@ -393,18 +400,5 @@ class GANModule(pl.LightningModule):
             #     "frequency": 1,
             # },
         ]
-
-        if self.mode == "enhancer":
-            lr_schedulers = [
-                {
-                    "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                        opt_g,
-                        milestones=[10 * i for i in range(100)],
-                        gamma=0.1,
-                    ),
-                    "interval": "epoch",
-                    "frequency": 1,
-                },
-            ]
 
         return [opt_g, opt_d], lr_schedulers
