@@ -58,6 +58,8 @@ class DenseLayer(nn.Module):
             ),
         )
 
+        # self.downsample = nn.Conv2d(num_features, growth_rate, kernel_size=1, stride=1, padding=0)
+
     def forward(self, _input: Tensor) -> Tensor:
         """forward.
 
@@ -66,6 +68,7 @@ class DenseLayer(nn.Module):
         :rtype: Tensor
         """
         output = self.model(_input)
+        # return output + self.downsample(_input)
         return torch.cat((_input, output), 1)
 
 
@@ -289,6 +292,7 @@ class Enhancer(nn.Module):
                 )
             )
             num_features += growth_rate * num_layers
+            # num_features = growth_rate
 
             if transition is not None:
                 dense_blocks.append(
@@ -307,7 +311,7 @@ class Enhancer(nn.Module):
 
         # output part
         self.output_block = nn.Sequential(
-            nn.Conv2d(num_features, nc, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(num_features, nc, kernel_size=1, stride=1, padding=0),
         )
 
         # Official init from torch repo.
@@ -325,9 +329,9 @@ class Enhancer(nn.Module):
         data = torch.cat((input_, encoded_metadata), 1)
         data = self.dense_blocks(data)
         output = self.output_block(data)
-        return output
-        # with_mask = torch.add(input_, output)
-        # return with_mask
+        # return output
+        with_mask = torch.add(input_, output)
+        return with_mask
 
 
 if __name__ == "__main__":

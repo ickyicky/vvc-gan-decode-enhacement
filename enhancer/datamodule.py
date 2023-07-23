@@ -64,10 +64,10 @@ class VVCDataModule(pl.LightningDataModule):
         test_orig_chunk_folder: Optional[str] = None,
         chunk_height: int = 132,
         chunk_width: int = 132,
-        batch_size: int = 32,
+        batch_size: int = 8,
         val_batch_size: int = 96,
         test_batch_size: int = 96,
-        n_step: int = 300,
+        n_step: int = 1000,
         n_step_valid: int = 5,
     ):
         """__init__.
@@ -119,6 +119,9 @@ class VVCDataModule(pl.LightningDataModule):
                 chunk_width=self.chunk_width,
             )
 
+            epochs_for_real_one = len(self.dataset_train) / self.n_step
+            print(f"it takes {epochs_for_real_one} of training to reach one real epoch")
+
             self.dataset_val = VVCDataset(
                 chunk_folder=self.test_chunk_folder,
                 orig_chunk_folder=self.test_orig_chunk_folder,
@@ -126,6 +129,11 @@ class VVCDataModule(pl.LightningDataModule):
                 metadata_transform=self.metadata_transform(),
                 chunk_height=self.chunk_height,
                 chunk_width=self.chunk_width,
+            )
+
+            epochs_for_real_one = len(self.dataset_val) / self.n_step_valid
+            print(
+                f"it takes {epochs_for_real_one} of validation to reach one real epoch"
             )
 
         if stage in ("test", "predict"):
@@ -157,7 +165,7 @@ class VVCDataModule(pl.LightningDataModule):
         data_loader = DataLoader(
             self.dataset_test,
             batch_size=self.test_batch_size,
-            shuffle=False,
+            shuffle=True,
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
