@@ -8,6 +8,7 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 from typing import Tuple
 from .dataset import VVCDataset
 from pytorch_msssim import SSIM, MS_SSIM
+from random import random
 
 
 class GANModule(pl.LightningModule):
@@ -48,10 +49,6 @@ class GANModule(pl.LightningModule):
 
         self.mode = mode
 
-    def psnr_transform(self, output):
-        # crop removes area that is gradiented
-        return output
-
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
 
@@ -73,7 +70,7 @@ class GANModule(pl.LightningModule):
             if not e_train and not d_train:
                 return True, True
 
-            return e_train, d_train
+            return bool(e_train), bool(d_train)
 
         return True, True
 
@@ -118,6 +115,32 @@ class GANModule(pl.LightningModule):
             )
 
         self.log(f"{prefix}g_loss", g_loss, prog_bar=True)
+
+        if stage != "train":
+            enhanced_psnr = psnr(
+                enhanced,
+                orig_chunks,
+            )
+            orig_psnr = psnr(
+                chunks,
+                orig_chunks,
+            )
+            enhanced_ssim = ssim(
+                enhanced,
+                orig_chunks,
+            )
+            orig_ssim = ssim(
+                chunks,
+                orig_chunks,
+            )
+            self.log_dict(
+                {
+                    f"{prefix}psnr": enhanced_psnr,
+                    f"{prefix}ref_psnr": orig_psnr,
+                    f"{prefix}ssim": enhanced_ssim,
+                    f"{prefix}ref_ssim": orig_ssim,
+                },
+            )
 
         return enhanced, preds, g_loss
 
@@ -191,6 +214,7 @@ class GANModule(pl.LightningModule):
                 )
             )
 
+        log = {prefix + key: value for key, value in log.items()}
         self.logger.experiment.log(log)
 
     def training_step(self, batch, batch_idx):
@@ -232,9 +256,6 @@ class GANModule(pl.LightningModule):
             real_preds = None
             fake_preds = preds
 
-        if e_train is None:
-            preds = fake_preds
-
         if batch_idx % 100 == 0:
             self.log_images(
                 enhanced,
@@ -258,99 +279,35 @@ class GANModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         chunks, orig_chunks, metadata, _ = batch
+        preds = None
 
+        # train ENHANCE!
         # ENHANCE!
         if self.mode != "discriminator":
-            enhanced = self(chunks, metadata)
+            # with gradient
+            enhanced, preds, g_loss = self.g_step(chunks, orig_chunks, metadata, "val")
+            fake_chunks = enhanced.detach()
+        else:
+            fake_chunks = chunks
+            enhanced = None
 
-            # ground truth result (ie: all fake)
-            # put on GPU because we created this tensor inside training_loop
-            valid = torch.ones(chunks.size(0), 1)
-            valid = valid.type_as(chunks)
-
-            # adversarial loss is binary cross-entropy
-            preds = self.discriminator(enhanced)
-
-            g_loss = self.adversarial_loss(preds, valid)
-
-            if batch_idx % 500 == 0:
-                log = {"enhanced": [], "uncompressed": [], "decompressed": []}
-                for i in range(self.num_samples):
-                    enh = enhanced[i].cpu()
-                    orig = orig_chunks[i].cpu()
-                    dec = chunks[i].cpu()
-
-                    log["enhanced"].append(
-                        wandb.Image(enh, caption=f"Pred: {preds[i].item()}")
-                    )
-                    log["uncompressed"].append(
-                        wandb.Image(orig, caption=f"uncompressed image {i}")
-                    )
-                    log["decompressed"].append(
-                        wandb.Image(dec, caption=f"decompressed image {i}")
-                    )
-                self.logger.experiment.log(
-                    {f"validation_{k}": v for k, v in log.items()}
-                )
-
-            # how well can it label as fake?
-            fake = torch.zeros(orig_chunks.size(0), 1)
-            fake = fake.type_as(orig_chunks)
-            # calculate psnr, ssim,
-            transformed_enhacned = self.psnr_transform(enhanced)
-            transformed_orig = self.psnr_transform(orig_chunks)
-            transformed_chunks = self.psnr_transform(chunks)
-
-            enhanced_psnr = psnr(
-                transformed_enhacned,
-                transformed_orig,
-            )
-            orig_psnr = psnr(
-                transformed_chunks,
-                transformed_orig,
-            )
-            enhanced_ssim = ssim(
-                transformed_enhacned,
-                transformed_orig,
-            )
-            orig_ssim = ssim(
-                transformed_chunks,
-                transformed_orig,
-            )
-
-            # log everything
-            self.log_dict(
-                {
-                    "val_g_loss": g_loss,
-                    "val_psnr": enhanced_psnr,
-                    "val_ref_psnr": orig_psnr,
-                    "val_ssim": enhanced_ssim,
-                    "val_ref_ssim": orig_ssim,
-                },
+        # train discriminator
+        if self.mode != "enhancer":
+            fake_preds, real_preds, d_loss = self.d_step(
+                fake_chunks, orig_chunks, "val"
             )
         else:
-            preds = self.discriminator(chunks)
+            real_preds = None
+            fake_preds = preds
 
-        if self.mode != "enhancer":
-            valid = torch.ones(chunks.size(0), 1)
-            valid = valid.type_as(chunks)
-
-            fake = torch.zeros(chunks.size(0), 1)
-            fake = valid.type_as(chunks)
-
-            real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
-            fake_loss = self.adversarial_loss(preds, fake)
-
-            # discriminator loss is the average of these
-            d_loss = (real_loss + fake_loss) / 2
-
-            # log everything
-            self.log_dict(
-                {
-                    "val_d_loss": d_loss,
-                    "val_d_real_loss": real_loss,
-                    "val_d_fakeloss": fake_loss,
-                },
+        if batch_idx % 100 == 0:
+            self.log_images(
+                enhanced,
+                chunks,
+                orig_chunks,
+                fake_preds,
+                real_preds,
+                "val",
             )
 
     def test_step(self, batch, batch_idx):
