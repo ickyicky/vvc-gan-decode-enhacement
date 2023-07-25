@@ -16,8 +16,10 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
-        enhancer_lr: float = 1e-4,
-        discriminator_lr: float = 1e-3,
+        # enhancer_lr: float = 1e-4,
+        # discriminator_lr: float = 1e-3,
+        enhancer_lr: float = 1e-5,
+        discriminator_lr: float = 1e-6,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
         enhancer_min_loss: float = 0.25,
@@ -412,25 +414,28 @@ class GANModule(pl.LightningModule):
             weight_decay=1e-4,
         )
 
-        lr_schedulers = [
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_d,
-                    milestones=[25, 50, 100, 150],
-                    gamma=0.1,
-                ),
-                "interval": "epoch",
-                "frequency": 1,
-            },
-            {
-                "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                    opt_g,
-                    milestones=[15, 25, 50, 100, 150],
-                    gamma=0.1,
-                ),
-                "interval": "epoch",
-                "frequency": 1,
-            },
-        ]
+        if self.mode == "gan":
+            lr_schedulers = []
+        else:
+            lr_schedulers = [
+                {
+                    "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                        opt_d,
+                        milestones=[25, 50, 100, 150],
+                        gamma=0.1,
+                    ),
+                    "interval": "epoch",
+                    "frequency": 1,
+                },
+                {
+                    "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                        opt_g,
+                        milestones=[15, 25, 50, 100, 150],
+                        gamma=0.1,
+                    ),
+                    "interval": "epoch",
+                    "frequency": 1,
+                },
+            ]
 
         return [opt_g, opt_d], lr_schedulers

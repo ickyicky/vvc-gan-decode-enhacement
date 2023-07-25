@@ -15,7 +15,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
         "--chunks-dir",
-        "-d",
+        "-i",
         metavar="FILE",
         default="chunks",
         help="directory with chunks",
@@ -55,7 +55,16 @@ if __name__ == "__main__":
         required=False,
         action="store",
         default=None,
-        help="checkpoint to load",
+        help="checkpoint to load for enhancer",
+    )
+    parser.add_argument(
+        "-d",
+        "--discriminator",
+        metavar="FILE",
+        required=False,
+        action="store",
+        default=None,
+        help="checkpoint to load for discriminator",
     )
     parser.add_argument(
         "--test",
@@ -89,18 +98,22 @@ if __name__ == "__main__":
     )
 
     if args.checkpoint:
-        module = GANModule.load_from_checkpoint(args.checkpoint)
-        module.mode = args.mode
+        enhancer = GANModule.load_from_checkpoint(args.checkpoint).enhancer
     else:
         enhancer = Enhancer()
-        discriminator = Discriminator()
         enhancer.apply(weights_init)
+
+    if args.discriminator:
+        discriminator = GANModule.load_from_checkpoint(args.discriminator).discriminator
+    else:
+        discriminator = Discriminator()
         discriminator.apply(weights_init)
-        module = GANModule(
-            enhancer,
-            discriminator,
-            mode=args.mode,
-        )
+
+    module = GANModule(
+        enhancer,
+        discriminator,
+        mode=args.mode,
+    )
 
     wandb_logger = WandbLogger(
         project="vvc-enhancer",
@@ -113,7 +126,7 @@ if __name__ == "__main__":
         callbacks=[
             TQDMProgressBar(refresh_rate=20),
             LearningRateMonitor(logging_interval="step"),
-            ModelCheckpoint(dirpath="checkpoints", filename="{epoch}"),
+            ModelCheckpoint(dirpath="checkpoints", filename="{}"),
         ],
         logger=wandb_logger,
     )
