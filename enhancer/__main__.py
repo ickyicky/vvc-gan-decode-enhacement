@@ -126,7 +126,7 @@ if __name__ == "__main__":
         callbacks=[
             TQDMProgressBar(refresh_rate=20),
             LearningRateMonitor(logging_interval="step"),
-            ModelCheckpoint(dirpath="checkpoints", filename="{}"),
+            ModelCheckpoint(dirpath="checkpoints", filename="{epoch}"),
         ],
         logger=wandb_logger,
     )
