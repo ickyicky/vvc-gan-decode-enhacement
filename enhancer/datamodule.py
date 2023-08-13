@@ -75,8 +75,8 @@ class VVCDataModule(pl.LightningDataModule):
         :type batch_size: int
         """
         super().__init__()
-        self.config = dataset_config
-        self.dataloader_config = dataloader_config
+        self.config = dataloader_config
+        self.dataset_config = dataset_config
 
         self.dataset_val = None
         self.dataset_test = None
