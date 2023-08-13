@@ -3,7 +3,7 @@ from .models.enhancer import Enhancer
 from .datamodule import VVCDataModule
 from .gan_module import GANModule
 from .utils import weights_init
-from .config import Config
+from .config import Config, TrainingMode
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -38,19 +38,25 @@ if __name__ == "__main__":
         dataloader_config=config.dataloader,
     )
 
-    enhancer = Enhancer(
-        config=config.enhancer,
-    )
+    if config.trainer.mode != TrainingMode.DISCRIMINATOR:
+        enhancer = Enhancer(
+            config=config.enhancer,
+        )
 
-    if config.enhancer.load_from:
-        enhancer.load_state_dict(torch.load(config.enhancer.load_from))
+        if config.enhancer.load_from:
+            enhancer.load_state_dict(torch.load(config.enhancer.load_from))
+    else:
+        enhancer = None
 
-    discriminator = Discriminator(
-        config=config.discriminator,
-    )
+    if config.trainer.mode != TrainingMode.ENHANCER:
+        discriminator = Discriminator(
+            config=config.discriminator,
+        )
 
-    if config.discriminator.load_from:
-        discriminator.load_state_dict(torch.load(config.discriminator.load_from))
+        if config.discriminator.load_from:
+            discriminator.load_state_dict(torch.load(config.discriminator.load_from))
+    else:
+        discriminator = None
 
     module = GANModule(
         config.trainer,
