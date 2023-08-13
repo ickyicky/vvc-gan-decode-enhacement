@@ -43,10 +43,7 @@ class Enhancer(nn.Module):
     ) -> None:
         super().__init__()
 
-        if config.with_mask:
-            self.forward = self._forward_with_mask
-        else:
-            self.forward = self._forward
+        self.with_mask = config.with_mask
 
         self.metadata_encoder = MetadataEncoder(
             metadata_size=config.metadata_size,
@@ -65,15 +62,16 @@ class Enhancer(nn.Module):
             initial_features=num_features,
         )
 
-    def _forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
+    def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
         encoded_metadata = self.metadata_encoder(metadata)
         data = torch.cat((input_, encoded_metadata), 1)
-        return self.model(data)
+        result = self.model(data)
 
-    def _forward_with_mask(self, input_: Tensor, metadata: Tensor) -> Tensor:
-        output = self._forward(input_, metadata)
-        with_mask = torch.add(input_, output)
-        return with_mask
+        if self.with_mask:
+            with_mask = torch.add(input_, result)
+            return with_mask
+
+        return result
 
 
 if __name__ == "__main__":
@@ -85,6 +83,6 @@ if __name__ == "__main__":
 
     g = Enhancer(config.enhancer)
     result = g(torch.rand((1, 3, 132, 132)), torch.rand((1, 6, 1, 1)))
-    print(result)
+    print(result.shape)
 
     summary(g, [(3, 132, 132), (6, 1, 1)], device="cpu")

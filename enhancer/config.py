@@ -50,7 +50,7 @@ class BlockConfig(BaseModel):
 
 
 class StructureConfig(BaseModel):
-    blocks: List[BlockConfig] = [BlockConfig]
+    blocks: List[BlockConfig] = [BlockConfig()]
 
 
 class NetworkConfig(BaseModel):
