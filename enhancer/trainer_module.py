@@ -11,7 +11,7 @@ from .config import TrainerConfig, TrainingMode
 from .dataset import VVCDataset
 
 
-class GANModule(pl.LightningModule):
+class TrainerModule(pl.LightningModule):
     def __init__(
         self,
         config: TrainerConfig,

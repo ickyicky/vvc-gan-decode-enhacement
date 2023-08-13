@@ -1,7 +1,7 @@
 from .models.discriminator import Discriminator
 from .models.enhancer import Enhancer
 from .datamodule import VVCDataModule
-from .gan_module import GANModule
+from .trainer import TrainerModule
 from .utils import weights_init
 from .config import Config, TrainingMode
 from argparse import ArgumentParser
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     if config.discriminator.load_from:
         discriminator.load_state_dict(torch.load(config.discriminator.load_from))
 
-    module = GANModule(
+    module = TrainerModule(
         config.trainer,
         enhancer,
         discriminator,
