@@ -9,7 +9,7 @@ enhancer:
         padding: 4
         stride: 0
         num_layers: 1
-        features: 64
+        features: 32
         transition:
           stride: 1
           mode: same
@@ -17,7 +17,7 @@ enhancer:
         padding: 3
         stride: 0
         num_layers: 1
-        features: 48
+        features: 24
         transition:
           stride: 1
           mode: same
@@ -25,7 +25,7 @@ enhancer:
         padding: 2
         stride: 0
         num_layers: 1
-        features: 32
+        features: 16
         transition:
           stride: 1
           mode: same
@@ -33,7 +33,7 @@ enhancer:
         padding: 1
         stride: 0
         num_layers: 1
-        features: 16
+        features: 8
         transition:
           stride: 1
           mode: same

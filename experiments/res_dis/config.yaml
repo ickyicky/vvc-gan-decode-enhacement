@@ -9,7 +9,7 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 128
+        features: 18
         transition:
           stride: 2
           mode: down
@@ -17,7 +17,7 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 256
+        features: 36
         transition:
           stride: 2
           mode: down
@@ -25,7 +25,7 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 512
+        features: 72
         transition:
           stride: 2
           mode: down
@@ -33,7 +33,7 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 1024
+        features: 144
         transition:
           stride: 2
           mode: down
@@ -41,7 +41,7 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 2048
+        features: 288
         transition:
           stride: 2
           mode: down

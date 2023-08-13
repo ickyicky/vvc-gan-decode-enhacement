@@ -9,6 +9,22 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
+        features: 32
+        transition:
+          stride: 2
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        num_layers: 1
+        features: 64
+        transition:
+          stride: 2
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        num_layers: 1
         features: 128
         transition:
           stride: 2
@@ -26,22 +42,6 @@ discriminator:
         stride: 1
         num_layers: 1
         features: 512
-        transition:
-          stride: 2
-          mode: down
-      - kernel_size: 3
-        padding: 1
-        stride: 1
-        num_layers: 1
-        features: 1024
-        transition:
-          stride: 2
-          mode: down
-      - kernel_size: 3
-        padding: 1
-        stride: 1
-        num_layers: 1
-        features: 2048
         transition:
           stride: 2
           mode: down
