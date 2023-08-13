@@ -6,6 +6,7 @@ from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 from glob import glob
 from pathlib import Path
+from .config import SubDatasetConfig
 
 
 @validate_arguments
@@ -73,24 +74,20 @@ class VVCDataset(torch.utils.data.Dataset):
     CHUNK_GLOB = "{folder}/*/*/*/*.png"
     CHUNK_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}/{position[0]}_{position[1]}_{corner}.png"
     ORIG_CHUNK_NAME = "{file}/{frame}_{position[0]}_{position[1]}.png"
-    SAVED_CHUNK_FOLDER = "enhanced"
 
     def __init__(
         self,
-        chunk_folder: str,
-        orig_chunk_folder: str,
+        settings: SubDatasetConfig,
         chunk_transform: Any,
         metadata_transform: Any,
-        chunk_height: int = 132,
-        chunk_width: int = 132,
     ) -> None:
         super().__init__()
 
-        self.chunk_folder = chunk_folder
-        self.orig_chunk_folder = orig_chunk_folder
+        self.chunk_folder = settings.chunk_folder
+        self.orig_chunk_folder = settings.orig_chunk_folder
 
-        self.chunk_height = chunk_height
-        self.chunk_width = chunk_width
+        self.chunk_height = settings.chunk_height
+        self.chunk_width = settings.chunk_width
 
         self.chunk_transform = chunk_transform
         self.metadata_transform = metadata_transform
@@ -146,12 +143,12 @@ class VVCDataset(torch.utils.data.Dataset):
         return (_chunk, orig_chunk, self._metadata_to_np(chunk.metadata))
 
     @classmethod
-    def save_chunk(cls, chunk: Tuple, chunk_data: Any) -> Any:
+    def save_chunk(cls, chunk: Tuple, chunk_data: Any, saved_chunk_folder: str) -> Any:
         chunk = chunk_from_tuple(chunk)
         chunk_path = cls.CHUNK_NAME.format_map(
             dict(**asdict(chunk), **asdict(chunk.metadata))
         )
-        chunk_path = os.path.join(cls.SAVED_CHUNK_FOLDER, chunk_path)
+        chunk_path = os.path.join(saved_chunk_folder, chunk_path)
         folder = os.path.dirname(chunk_path)
         Path(folder).mkdir(parents=True, exist_ok=True)
 
@@ -185,19 +182,3 @@ class VVCDataset(torch.utils.data.Dataset):
             self.metadata_transform(metadata),
             chunk_to_tuple(chunk_obj),
         )
-
-
-if __name__ == "__main__":
-    import sys
-    from pprint import pprint
-
-    transform = lambda x: x
-
-    d = VVCDataset(*sys.argv[1:], *[transform, transform])
-    pprint(d)
-    len_d = len(d)
-    pprint(len_d)
-    import random
-
-    idx = random.randint(0, len_d)
-    pprint(d[idx])

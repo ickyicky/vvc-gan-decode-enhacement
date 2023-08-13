@@ -1,0 +1,50 @@
+trainer:
+  mode: discriminator
+discriminator:
+  implementation: res
+  save_to: 'experiments/res_dis/discriminator.pth'
+  structure:
+    blocks:
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        num_layers: 1
+        features: 128
+        transition:
+          stride: 2
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        num_layers: 1
+        features: 256
+        transition:
+          stride: 2
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        num_layers: 1
+        features: 512
+        transition:
+          stride: 2
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        num_layers: 1
+        features: 1024
+        transition:
+          stride: 2
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        num_layers: 1
+        features: 2048
+        transition:
+          stride: 2
+          mode: down
+  output_kernel_size: 5
+  output_stride: 1
+  output_padding: 0

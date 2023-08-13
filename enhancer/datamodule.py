@@ -1,9 +1,9 @@
 import os
 import torch
-from torch.utils.data import DataLoader, random_split, Subset
+from torch.utils.data import DataLoader
 from torchvision import transforms
 import pytorch_lightning as pl
-from typing import Optional, Tuple
+from .config import DataloaderConfig, DatasetConfig
 
 from .dataset import VVCDataset
 
@@ -58,17 +58,8 @@ class VVCDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        chunk_folder: str,
-        orig_chunk_folder: str,
-        test_chunk_folder: Optional[str] = None,
-        test_orig_chunk_folder: Optional[str] = None,
-        chunk_height: int = 132,
-        chunk_width: int = 132,
-        batch_size: int = 8,
-        val_batch_size: int = 96,
-        test_batch_size: int = 96,
-        n_step: int = 1000,
-        n_step_valid: int = 5,
+        dataset_config: DatasetConfig,
+        dataloader_config: DataloaderConfig,
     ):
         """__init__.
 
@@ -84,21 +75,8 @@ class VVCDataModule(pl.LightningDataModule):
         :type batch_size: int
         """
         super().__init__()
-        self.batch_size = batch_size
-        self.val_batch_size = val_batch_size
-        self.test_batch_size = test_batch_size
-
-        self.chunk_folder = chunk_folder
-        self.orig_chunk_folder = orig_chunk_folder
-
-        self.test_chunk_folder = test_chunk_folder
-        self.test_orig_chunk_folder = test_orig_chunk_folder
-
-        self.chunk_height = chunk_height
-        self.chunk_width = chunk_width
-
-        self.n_step = n_step
-        self.n_step_valid = n_step_valid
+        self.config = dataset_config
+        self.dataloader_config = dataloader_config
 
         self.dataset_val = None
         self.dataset_test = None
@@ -111,60 +89,51 @@ class VVCDataModule(pl.LightningDataModule):
         """
         if stage == "fit":
             self.dataset_train = VVCDataset(
-                chunk_folder=self.chunk_folder,
-                orig_chunk_folder=self.orig_chunk_folder,
+                settings=self.dataset_config.train,
                 chunk_transform=self.chunk_transform(),
                 metadata_transform=self.metadata_transform(),
-                chunk_height=self.chunk_height,
-                chunk_width=self.chunk_width,
             )
 
-            epochs_for_real_one = len(self.dataset_train) / self.n_step
+            epochs_for_real_one = len(self.dataset_train) / self.config.n_step
             print(f"it takes {epochs_for_real_one} of training to reach one real epoch")
 
             self.dataset_val = VVCDataset(
-                chunk_folder=self.test_chunk_folder,
-                orig_chunk_folder=self.test_orig_chunk_folder,
+                settings=self.dataset_config.val,
                 chunk_transform=self.chunk_transform(),
                 metadata_transform=self.metadata_transform(),
-                chunk_height=self.chunk_height,
-                chunk_width=self.chunk_width,
             )
 
-            epochs_for_real_one = len(self.dataset_val) / self.n_step_valid
+            epochs_for_real_one = len(self.dataset_val) / self.config.val_n_step
             print(
                 f"it takes {epochs_for_real_one} of validation to reach one real epoch"
             )
 
         if stage in ("test", "predict"):
             self.dataset_test = VVCDataset(
-                chunk_folder=self.test_chunk_folder,
-                orig_chunk_folder=self.test_orig_chunk_folder,
+                settings=self.dataset_config.test,
                 chunk_transform=self.chunk_transform(),
                 metadata_transform=self.metadata_transform(),
-                chunk_height=self.chunk_height,
-                chunk_width=self.chunk_width,
             )
 
     def train_dataloader(self):
         """train_dataloader."""
         data_loader = DataLoader(
             self.dataset_train,
-            batch_size=self.batch_size,
+            batch_size=self.config.batch_size,
             shuffle=True,
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
         return LoaderWrapper(
             data_loader,
-            self.n_step,
+            self.config.n_step,
         )
 
     def test_dataloader(self):
         """test_dataloader."""
         data_loader = DataLoader(
             self.dataset_test,
-            batch_size=self.test_batch_size,
+            batch_size=self.config.test_batch_size,
             shuffle=True,
             pin_memory=True,
             num_workers=os.cpu_count(),
@@ -178,14 +147,14 @@ class VVCDataModule(pl.LightningDataModule):
         """val_dataloader."""
         data_loader = DataLoader(
             self.dataset_val,
-            batch_size=self.val_batch_size,
+            batch_size=self.config.val_batch_size,
             shuffle=True,
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
         return LoaderWrapper(
             data_loader,
-            self.n_step_valid,
+            self.config.val_n_step,
         )
 
     def chunk_transform(self):
@@ -204,15 +173,3 @@ class VVCDataModule(pl.LightningDataModule):
             return torch.as_tensor(metadata).float().view(len(metadata), 1, 1)
 
         return transform
-
-
-if __name__ == "__main__":
-    import sys
-
-    d = VVCDataModule(*sys.argv[1:])
-    d.setup()
-    train = d.train_dataloader()
-    for x in train:
-        print(x[0].shape)
-        print(x[2].shape)
-        break

@@ -6,27 +6,17 @@ import numpy as np
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
 from torchmetrics.functional.classification import accuracy
-from typing import Tuple
-from .dataset import VVCDataset
 from pytorch_msssim import SSIM, MS_SSIM
-from random import random
+from .config import TrainerConfig, TrainingMode
+from .dataset import VVCDataset
 
 
 class GANModule(pl.LightningModule):
     def __init__(
         self,
+        config: TrainerConfig,
         enhancer,
         discriminator,
-        enhancer_lr: float = 1e-4,
-        discriminator_lr: float = 1e-3,
-        # enhancer_lr: float = 1e-4,
-        # discriminator_lr: float = 1e-4,
-        betas: Tuple[float, float] = (0.5, 0.999),
-        num_samples: int = 6,
-        enhancer_min_loss: float = 0.25,
-        discriminator_min_loss: float = 0.15,
-        probe: int = 10,
-        mode: str = "gan",
     ):
         super().__init__()
         self.automatic_optimization = False
@@ -34,23 +24,23 @@ class GANModule(pl.LightningModule):
 
         self.enhancer = enhancer
         self.discriminator = discriminator
+        self.mode = config.mode
+        self.config = config.current
 
-        self.enhancer_lr = enhancer_lr
-        self.discriminator_lr = discriminator_lr
+        self.enhancer_lr = self.config.enhancer_lr
+        self.discriminator_lr = self.config.discriminator_lr
 
-        self.betas = betas
-        self.discriminator_min_loss = discriminator_min_loss
-        self.enhancer_min_loss = enhancer_min_loss
+        self.betas = self.config.betas
+        self.discriminator_min_loss = self.config.discriminator_min_loss
+        self.enhancer_min_loss = self.config.enhancer_min_loss
 
         self.enhancer_losses = [1.0]
         self.discriminator_losses = [1.0]
-        self.probe = probe
+        self.probe = self.config.probe
 
-        self.num_samples = num_samples
+        self.num_samples = self.config.num_samples
         self.ssim = SSIM(data_range=1.0, win_size=9)
         self.msssim = MS_SSIM(data_range=1.0, win_size=9)
-
-        self.mode = mode
 
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
@@ -59,9 +49,9 @@ class GANModule(pl.LightningModule):
         return F.mse_loss(y_hat, y)
 
     def what_to_train(self):
-        if self.mode == "enhancer":
+        if self.mode == TrainingMode.ENHANCER:
             return True, None
-        elif self.mode == "discriminator":
+        elif self.mode == TrainingMode.DISCRIMINATOR:
             return None, True
         else:
             e_loss = np.mean(self.enhancer_losses)
@@ -98,7 +88,7 @@ class GANModule(pl.LightningModule):
         self.log(f"{prefix}g_msssim_loss", msssim_loss, prog_bar=False)
         self.log(f"{prefix}g_mse_loss", mse_loss, prog_bar=False)
 
-        if self.mode == "gan":
+        if self.mode == TrainingMode.GAN:
             preds = self.discriminator(enhanced)
             gd_loss = self.adversarial_loss(preds, valid)
             g_loss = (
@@ -293,7 +283,7 @@ class GANModule(pl.LightningModule):
 
         # train ENHANCE!
         # ENHANCE!
-        if self.mode != "discriminator":
+        if self.mode != TrainingMode.DISCRIMINATOR:
             # with gradient
             enhanced, preds, g_loss = self.g_step(chunks, orig_chunks, metadata, "val")
             fake_chunks = enhanced.detach()
@@ -302,7 +292,7 @@ class GANModule(pl.LightningModule):
             enhanced = None
 
         # train discriminator
-        if self.mode != "enhancer":
+        if self.mode != TrainingMode.ENHANCER:
             fake_preds, real_preds, d_loss = self.d_step(
                 fake_chunks, orig_chunks, "val"
             )
@@ -406,7 +396,9 @@ class GANModule(pl.LightningModule):
 
         for i, chunk_data in enumerate(enhanced):
             chunk = [c[i].cpu() if hasattr(c[i], "cpu") else c[i] for c in chunk_objs]
-            VVCDataset.save_chunk(chunk, chunk_data.cpu().numpy())
+            VVCDataset.save_chunk(
+                chunk, chunk_data.cpu().numpy(), self.config.saved_chunk_folder
+            )
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(
@@ -418,32 +410,36 @@ class GANModule(pl.LightningModule):
         opt_d = torch.optim.SGD(
             self.discriminator.parameters(),
             lr=self.discriminator_lr,
-            momentum=0.9,
+            momentum=self.momentum,
             weight_decay=self.discriminator_lr / 10,
         )
 
-        if self.mode == "gan":
-            lr_schedulers = []
-        else:
-            lr_schedulers = [
-                {
-                    "scheduler": torch.optim.lr_scheduler.MultiStepLR(
-                        opt_d,
-                        milestones=[20, 50, 100, 150],
-                        gamma=0.1,
-                    ),
-                    "interval": "epoch",
-                    "frequency": 1,
-                },
+        lr_schedulers = []
+
+        if self.config.enhancer_scheduler is True:
+            lr_schedulers.append(
                 {
                     "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                         opt_g,
-                        milestones=[200,600],
-                        gamma=0.1,
+                        milestones=self.config.enhancer_scheduler_milestones,
+                        gamma=self.config.enhancer_scheduler_gamma,
                     ),
                     "interval": "epoch",
                     "frequency": 1,
-                },
-            ]
+                }
+            )
+
+        if self.config.discriminator_scheduler is True:
+            lr_schedulers.append(
+                {
+                    "scheduler": torch.optim.lr_scheduler.MultiStepLR(
+                        opt_d,
+                        milestones=self.config.discriminator_scheduler_milestones,
+                        gamma=self.config.discriminator_scheduler_gamma,
+                    ),
+                    "interval": "epoch",
+                    "frequency": 1,
+                }
+            )
 
         return [opt_g, opt_d], lr_schedulers

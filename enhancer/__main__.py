@@ -3,6 +3,7 @@ from .models.enhancer import Enhancer
 from .datamodule import VVCDataModule
 from .gan_module import GANModule
 from .utils import weights_init
+from .config import Config
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -14,105 +15,47 @@ import torch
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
-        "--chunks-dir",
-        "-i",
-        metavar="FILE",
-        default="chunks",
-        help="directory with chunks",
-    )
-    parser.add_argument(
-        "--orig-chunks-dir",
-        "-o",
-        metavar="FILE",
-        default="orig_chunks",
-        help="directory with original chunks",
-    )
-    parser.add_argument(
-        "--test-chunks-dir",
-        "-x",
-        metavar="FILE",
-        default="test_chunks",
-        help="directory with chunks",
-    )
-    parser.add_argument(
-        "--test-orig-chunks-dir",
-        "-y",
-        metavar="FILE",
-        default="test_orig_chunks",
-        help="directory with original chunks",
-    )
-    parser.add_argument(
-        "--epochs",
-        "-e",
-        type=int,
-        default=5,
-        help="number of epochs",
-    )
-    parser.add_argument(
-        "-c",
-        "--checkpoint",
-        metavar="FILE",
-        required=False,
+        "mode",
         action="store",
-        default=None,
-        help="checkpoint to load for enhancer",
-    )
-    parser.add_argument(
-        "-d",
-        "--discriminator",
-        metavar="FILE",
-        required=False,
-        action="store",
-        default=None,
-        help="checkpoint to load for discriminator",
-    )
-    parser.add_argument(
-        "--test",
-        "-t",
-        action="store_true",
-        help="number of epochs",
-    )
-    parser.add_argument(
-        "--run",
-        "-r",
-        action="store_true",
-        help="number of epochs",
-    )
-    parser.add_argument(
-        "--mode",
-        "-m",
-        action="store",
-        default="gan",
         type=str,
         help="mode of operation",
-        choices=["gan", "enhancer", "discriminator"],
+        choices=["train", "test", "predict"],
+    )
+    parser.add_argument(
+        "--config",
+        "-c",
+        metavar="FILE",
+        default="config.yaml",
+        help="config file",
     )
 
     args = parser.parse_args()
 
+    config = Config.load(args.config)
+
     data_module = VVCDataModule(
-        args.chunks_dir,
-        args.orig_chunks_dir,
-        args.test_chunks_dir,
-        args.test_orig_chunks_dir,
+        dataset_config=config.dataset,
+        dataloader_config=config.dataloader,
     )
 
-    if args.checkpoint:
-        enhancer = GANModule.load_from_checkpoint(args.checkpoint).enhancer
-    else:
-        enhancer = Enhancer()
-        enhancer.apply(weights_init)
+    enhancer = Enhancer(
+        config=config.enhancer,
+    )
 
-    if args.discriminator:
-        discriminator = GANModule.load_from_checkpoint(args.discriminator).discriminator
-    else:
-        discriminator = Discriminator()
-        discriminator.apply(weights_init)
+    if config.enhancer.load_from:
+        enhancer.load_state_dict(torch.load(config.enhancer.load_from))
+
+    discriminator = Discriminator(
+        config=config.discriminator,
+    )
+
+    if config.discriminator.load_from:
+        discriminator.load_state_dict(torch.load(config.discriminator.load_from))
 
     module = GANModule(
+        config.trainer,
         enhancer,
         discriminator,
-        mode=args.mode,
     )
 
     wandb_logger = WandbLogger(
@@ -122,7 +65,7 @@ if __name__ == "__main__":
     trainer = Trainer(
         accelerator="auto",
         devices=1 if torch.cuda.is_available() else None,
-        max_epochs=args.epochs,
+        max_epochs=config.trainer.current.epochs,
         callbacks=[
             TQDMProgressBar(refresh_rate=20),
             LearningRateMonitor(logging_interval="step"),
@@ -130,9 +73,18 @@ if __name__ == "__main__":
         ],
         logger=wandb_logger,
     )
-    if args.test:
+
+    if args.mode == "train":
+        trainer.fit(module, data_module)
+    elif args.mode == "test":
         trainer.test(module, data_module)
-    elif args.run:
+    elif args.mode == "predict":
         trainer.predict(module, data_module)
     else:
-        trainer.fit(module, data_module)
+        raise ValueError("mode not recognized")
+
+    if config.enhancer.save_to:
+        torch.save(enhancer.state_dict(), config.enhancer.save_to)
+
+    if config.discriminator.save_to:
+        torch.save(discriminator.state_dict(), config.discriminator.save_to)
