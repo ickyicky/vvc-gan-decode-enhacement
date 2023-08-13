@@ -1,5 +1,3 @@
-trainer:
-  mode: enhancer
 enhancer:
   implementation: conv
   save_to: 'experiments/conv_gen/generator.pth'

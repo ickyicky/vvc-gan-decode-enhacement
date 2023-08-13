@@ -38,25 +38,19 @@ if __name__ == "__main__":
         dataloader_config=config.dataloader,
     )
 
-    if config.trainer.mode != TrainingMode.DISCRIMINATOR:
-        enhancer = Enhancer(
-            config=config.enhancer,
-        )
+    enhancer = Enhancer(
+        config=config.enhancer,
+    )
 
-        if config.enhancer.load_from:
-            enhancer.load_state_dict(torch.load(config.enhancer.load_from))
-    else:
-        enhancer = None
+    if config.enhancer.load_from:
+        enhancer.load_state_dict(torch.load(config.enhancer.load_from))
 
-    if config.trainer.mode != TrainingMode.ENHANCER:
-        discriminator = Discriminator(
-            config=config.discriminator,
-        )
+    discriminator = Discriminator(
+        config=config.discriminator,
+    )
 
-        if config.discriminator.load_from:
-            discriminator.load_state_dict(torch.load(config.discriminator.load_from))
-    else:
-        discriminator = None
+    if config.discriminator.load_from:
+        discriminator.load_state_dict(torch.load(config.discriminator.load_from))
 
     module = GANModule(
         config.trainer,

@@ -40,8 +40,8 @@ class TransitionConfig(BaseModel):
 
 
 class BlockConfig(BaseModel):
-    kernel_size: int
-    padding: int
+    kernel_size: int = 3
+    padding: int = 1
 
     num_layers: int = 4
     features: int = 16
@@ -50,12 +50,12 @@ class BlockConfig(BaseModel):
 
 
 class StructureConfig(BaseModel):
-    blocks: List[BlockConfig]
+    blocks: List[BlockConfig] = [BlockConfig]
 
 
 class NetworkConfig(BaseModel):
     implementation: NetworkImplementation = NetworkImplementation.DENSE
-    structure: Optional[StructureConfig] = None
+    structure: StructureConfig = StructureConfig()
 
     load_from: Optional[str] = None
     save_to: Optional[str] = None

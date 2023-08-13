@@ -1,5 +1,3 @@
-trainer:
-  mode: enhancer
 enhancer:
   implementation: res
   save_to: 'experiments/res_gen/generator.pth'
