@@ -366,3 +366,42 @@ python3 -m enhancer -e 1000 -m "enhancer"  33986.29s user 2398.79s system 141% c
 [doman@doman-pc ~/Projects/Studies/mgr]$ lls checkpoints | head -n 2                                                                                                 [git][mainU]
 Permissions Size User  Group Date Modified Name
 .rw-r--r--   48M doman doman  3 Aug 06:05   epoch=998-v9.ckpt
+
+## Conv DIS
+
+wandb: Run history:
+wandb:               d_acc ▃▃▅▇▄▄▃▆█▆▇▅▇▄█▅▇▇▇▆▇▇▅▇▆▅▅▄▁▆▇▇▇▄▅▆▄▅▇█
+wandb:          d_fake_acc ▁▁▄█▅▇▂▇▇▇█▅▇▇▇██▇▅▇█▇▅██▄█▇▄▇█▇█▅█▇▂▇█▅
+wandb:         d_fake_loss ▆▅▅▃▃▂█▂▃▂▁▃▁▃▂▂▂▂▃▃▂▁▄▂▃▄▂▂▃▂▁▂▂▄▂▃▄▂▂▅
+wandb:              d_loss ▅▅▅▃▅▄▇▆▁▃▁▄▂█▁▅▃▃▂▃▃▂▇▃▄▃▄▄█▄▂▂▁▆▅▆▂▅▄▁
+wandb:          d_real_acc ▆▆▆▅▃▂▅▅▇▅▅▅▆▂▇▂▅▆▇▅▅▆▅▅▃▆▂▂▁▅▅▆▅▃▂▅▆▃▅█
+wandb:         d_real_loss ▄▄▄▄▅▅▅▇▃▄▃▄▄█▃▆▄▄▃▄▄▄▇▄▅▃▅▅█▅▄▃▃▆▆▆▃▆▅▁
+wandb:               epoch ▁▁▁▁▂▂▂▂▂▃▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇███
+wandb:             lr-Adam ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:              lr-SGD ████████▂▂▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb: trainer/global_step ▁▁▁▂▂▂▂▂▂▃▃▃▃▃▄▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇███
+wandb:           val_d_acc ▁▁▆████▇█████▇▇████▇█▇▇███
+wandb:      val_d_fake_acc ▁▃▇█▆▇█▇▇▇▇▇▆▆▇▇▇▇▇▇▇▇▇▇▇▆
+wandb:     val_d_fake_loss ██▃▂▃▃▁▂▂▃▃▂▃▃▃▂▂▂▃▃▂▃▃▃▂▃
+wandb:          val_d_loss ██▅▃▂▂▁▂▂▂▁▂▁▁▂▁▁▂▁▂▁▂▁▁▁▂
+wandb:      val_d_real_acc ▂▁▅▆█▇▇▆▇██▇██▇█▇▇▇▇▇▇▇▇▇█
+wandb:     val_d_real_loss ██▇▄▂▂▃▃▂▁▁▂▁▁▂▁▁▂▂▂▁▂▁▁▂▁
+wandb:
+wandb: Run summary:
+wandb:               d_acc 0.8125
+wandb:          d_fake_acc 1.0
+wandb:         d_fake_loss 0.15543
+wandb:              d_loss 0.18592
+wandb:          d_real_acc 0.625
+wandb:         d_real_loss 0.21642
+wandb:               epoch 98
+wandb:             lr-Adam 0.0001
+wandb:              lr-SGD 0.0
+wandb: trainer/global_step 49999
+wandb:           val_d_acc 0.80104
+wandb:      val_d_fake_acc 0.875
+wandb:     val_d_fake_loss 0.18159
+wandb:          val_d_loss 0.1623
+wandb:      val_d_real_acc 0.72708
+wandb:     val_d_real_loss 0.14301
+

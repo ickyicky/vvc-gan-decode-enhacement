@@ -23,7 +23,8 @@ class Discriminator(nn.Module):
         )
 
         self.output = nn.Sequential(
-            nn.Flatten(),
+            nn.Flatten(1),
+            nn.Linear(config.out_sum_features, 1),
             nn.Sigmoid(),
         )
 

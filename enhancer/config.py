@@ -42,11 +42,14 @@ class TransitionConfig(BaseModel):
 class BlockConfig(BaseModel):
     kernel_size: int = 3
     padding: int = 1
+    stride: int = 1
 
     num_layers: int = 4
     features: int = 16
 
     transition: Optional[TransitionConfig] = None
+
+    flags: str = ""
 
 
 class StructureConfig(BaseModel):
@@ -66,6 +69,7 @@ class NetworkConfig(BaseModel):
     output_kernel_size: int = 1
     output_stride: int = 1
     output_padding: int = 0
+    no_output_block: bool = False
 
 
 class EnhancerConfig(NetworkConfig):
@@ -81,6 +85,8 @@ class DiscriminatorConfig(NetworkConfig):
     output_kernel_size: int = 4
     output_stride: int = 1
     output_padding: int = 0
+
+    out_sum_features: int = 4096
 
 
 class DatasetConfig(BaseModel):
@@ -100,7 +106,7 @@ class TrainingMode(Enum):
 
 
 class ModeTrainingConfig(BaseModel):
-    epochs: int = 1000
+    epochs: int = 100
 
     enhancer_lr: float = 1e-4
     betas: Tuple[float, float] = (0.5, 0.999)
@@ -120,7 +126,7 @@ class ModeTrainingConfig(BaseModel):
     enhancer_scheduler_gamma: float = 0.1
     discriminator_scheduler_gamma: float = 0.1
 
-    enhancer_scheduler_milestones: List[int] = [200, 600]
+    enhancer_scheduler_milestones: List[int] = [40, 80]
     discriminator_scheduler_milestones: List[int] = [20, 50, 100, 150]
 
     saved_chunk_folder: str = "enhanced"

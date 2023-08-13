@@ -8,22 +8,22 @@ enhancer:
       - kernel_size: 9
         padding: 4
         stride: 0
-        num_layers: 1
-        features: 64
+        num_layers: 4
+        features: 16
         transition:
           mode: same
       - kernel_size: 7
         padding: 3
         stride: 0
-        num_layers: 1
-        features: 48
+        num_layers: 3
+        features: 16
         transition:
           mode: same
       - kernel_size: 5
         padding: 2
         stride: 0
-        num_layers: 1
-        features: 32
+        num_layers: 2
+        features: 16
         transition:
           mode: same
       - kernel_size: 3

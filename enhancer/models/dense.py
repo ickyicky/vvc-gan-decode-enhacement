@@ -177,6 +177,36 @@ class Transition(nn.Module):
         return out
 
 
+class ConvLayer(nn.Module):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        kernel_size,
+        stride,
+        padding,
+    ) -> None:
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.ReflectionPad2d(
+                padding,
+            ),
+            nn.Conv2d(
+                in_features,
+                out_features,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(out_features),
+            nn.PReLU(),
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
 class DenseNet(nn.Module):
     """
     DenseNet-based network structure
@@ -195,6 +225,19 @@ class DenseNet(nn.Module):
         # dense blocks
         dense_blocks = []
         for i, block_conf in enumerate(config.structure.blocks):
+            if block_conf.flags == "nodense":
+                dense_blocks.append(
+                    ConvLayer(
+                        in_features=num_features,
+                        out_features=block_conf.features,
+                        kernel_size=block_conf.kernel_size,
+                        padding=block_conf.padding,
+                        stride=block_conf.stride,
+                    )
+                )
+                num_features = block_conf.features
+                continue
+
             dense_blocks.append(
                 DenseBlock(
                     num_input_features=num_features,
@@ -220,15 +263,17 @@ class DenseNet(nn.Module):
         self.dense_blocks = nn.Sequential(*dense_blocks)
 
         # output part
-        self.output_block = nn.Sequential(
-            nn.Conv2d(
-                num_features,
-                config.output_shape[2],
-                kernel_size=config.output_kernel_size,
-                stride=config.output_stride,
-                padding=config.output_padding,
-            ),
-        )
+        self.output_block = None
+        if config.no_output_block is False:
+            self.output_block = nn.Sequential(
+                nn.Conv2d(
+                    num_features,
+                    config.output_shape[2],
+                    kernel_size=config.output_kernel_size,
+                    stride=config.output_stride,
+                    padding=config.output_padding,
+                ),
+            )
 
         # Official init from torch repo.
         for m in self.modules():
@@ -242,5 +287,8 @@ class DenseNet(nn.Module):
 
     def forward(self, _input: Tensor) -> Tensor:
         data = self.dense_blocks(_input)
-        output = self.output_block(data)
-        return output
+
+        if self.output_block is not None:
+            return self.output_block(data)
+
+        return data

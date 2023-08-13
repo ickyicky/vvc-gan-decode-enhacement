@@ -159,15 +159,17 @@ class ConvNet(nn.Module):
         self.blocks = nn.Sequential(*blocks)
 
         # output part
-        self.output_block = nn.Sequential(
-            nn.Conv2d(
-                num_features,
-                config.output_shape[2],
-                kernel_size=config.output_kernel_size,
-                stride=config.output_stride,
-                padding=config.output_padding,
-            ),
-        )
+        self.output_block = None
+        if config.no_output_block is False:
+            self.output_block = nn.Sequential(
+                nn.Conv2d(
+                    num_features,
+                    config.output_shape[2],
+                    kernel_size=config.output_kernel_size,
+                    stride=config.output_stride,
+                    padding=config.output_padding,
+                ),
+            )
 
         # Official init from torch repo.
         for m in self.modules():
@@ -179,5 +181,8 @@ class ConvNet(nn.Module):
 
     def forward(self, _input: Tensor) -> Tensor:
         data = self.blocks(_input)
-        output = self.output_block(data)
-        return output
+
+        if self.output_block is not None:
+            return self.output_block(data)
+
+        return data

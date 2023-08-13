@@ -1,19 +1,20 @@
 trainer:
   mode: discriminator
   discriminator:
-    epochs: 200
-    discriminator_lr: 0.01
+    epochs: 100
+    discriminator_lr: 0.0001
     discriminator_scheduler_milestones: [20, 40, 60, 80]
 discriminator:
   implementation: res
-  save_to: 'experiments/res_dis/discriminator.pth'
+  save_to: 'experiments/res_dis/discriminator_shallow.pth'
   structure:
     blocks:
-      - kernel_size: 3
-        padding: 1
-        stride: 1
+      - kernel_size: 7
+        padding: 3
+        stride: 2
         num_layers: 1
-        features: 36
+        features: 64
+        flags: "nores"
         transition:
           stride: 2
           mode: down
@@ -21,7 +22,7 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 72
+        features: 64
         transition:
           stride: 2
           mode: down
@@ -29,7 +30,7 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 144
+        features: 128
         transition:
           stride: 2
           mode: down
@@ -37,7 +38,7 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 288
+        features: 256
         transition:
           stride: 2
           mode: down
@@ -45,10 +46,9 @@ discriminator:
         padding: 1
         stride: 1
         num_layers: 1
-        features: 576
+        features: 512
         transition:
           stride: 2
           mode: down
-  output_kernel_size: 5
-  output_stride: 1
-  output_padding: 0
+  out_sum_features: 12800
+  no_output_block: true
