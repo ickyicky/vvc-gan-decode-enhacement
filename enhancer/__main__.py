@@ -1,7 +1,7 @@
 from .models.discriminator import Discriminator
 from .models.enhancer import Enhancer
 from .datamodule import VVCDataModule
-from .trainer import TrainerModule
+from .trainer_module import TrainerModule
 from .utils import weights_init
 from .config import Config, TrainingMode
 from argparse import ArgumentParser

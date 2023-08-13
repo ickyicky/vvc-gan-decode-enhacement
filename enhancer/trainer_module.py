@@ -179,20 +179,20 @@ class TrainerModule(pl.LightningModule):
 
         log = {"uncompressed": [], "decompressed": []}
 
-        if self.mode != "discriminator":
+        if self.mode != TrainingMode.DISCRIMINATOR:
             log["enhanced"] = []
 
         for i in range(self.num_samples):
             orig = orig_chunks[i].cpu()
             dec = chunks[i].cpu()
 
-            if self.mode != "discriminator":
+            if self.mode != TrainingMode.DISCRIMINATOR:
                 enh = enhanced[i].cpu()
                 log["enhanced"].append(
                     wandb.Image(
                         enh,
                         caption=f"Pred: {preds[i].item()}"
-                        if self.mode == "gan"
+                        if self.mode == TrainingMode.GAN
                         else f"ENH: {i}",
                     )
                 )
@@ -201,7 +201,7 @@ class TrainerModule(pl.LightningModule):
                 wandb.Image(
                     orig,
                     caption=f"Pred: {real_preds[i].item()}"
-                    if self.mode != "enhancer"
+                    if self.mode != TrainingMode.ENHANCER
                     else f"UNC: {i}",
                 )
             )
@@ -210,7 +210,7 @@ class TrainerModule(pl.LightningModule):
                 wandb.Image(
                     dec,
                     caption=f"Pred: {preds[i].item()}"
-                    if self.mode == "discriminator"
+                    if self.mode == TrainingMode.DISCRIMINATOR
                     else f"DEC: {i}",
                 )
             )
