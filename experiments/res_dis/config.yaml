@@ -1,5 +1,9 @@
 trainer:
   mode: discriminator
+  discriminator:
+    epochs: 200
+    discriminator_lr: 0.01
+    discriminator_scheduler_milestones: [20, 40, 60, 80]
 discriminator:
   implementation: res
   save_to: 'experiments/res_dis/discriminator.pth'
