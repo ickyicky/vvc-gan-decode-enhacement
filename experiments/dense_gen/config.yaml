@@ -1,3 +1,5 @@
+trainer:
+  mode: enhancer
 enhancer:
   implementation: dense
   save_to: 'experiments/dense_gen/generator.pth'

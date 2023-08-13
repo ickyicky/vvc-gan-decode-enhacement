@@ -1,3 +1,5 @@
+trainer:
+  mode: discriminator
 discriminator:
   implementation: conv
   save_to: 'experiments/conv_dis/discriminator.pth'

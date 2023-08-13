@@ -1,3 +1,5 @@
+trainer:
+  mode: discriminator
 discriminator:
   implementation: dense
   save_to: 'experiments/dense_dis/discriminator.pth'

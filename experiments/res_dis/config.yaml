@@ -1,3 +1,5 @@
+trainer:
+  mode: discriminator
 discriminator:
   implementation: res
   save_to: 'experiments/res_dis/discriminator.pth'
