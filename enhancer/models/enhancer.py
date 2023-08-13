@@ -68,8 +68,9 @@ class DenseLayer(nn.Module):
         :rtype: Tensor
         """
         output = self.model(_input)
+        return output
         # return output + self.downsample(_input)
-        return torch.cat((_input, output), 1)
+        # return torch.cat((_input, output), 1)
 
 
 class DenseBlock(nn.Module):
@@ -291,8 +292,9 @@ class Enhancer(nn.Module):
                     no_bn=i == 0,
                 )
             )
-            num_features += growth_rate * num_layers
-            # num_features = growth_rate
+            # num_features += growth_rate * num_layers
+            num_features = growth_rate
+            transition = None
 
             if transition is not None:
                 dense_blocks.append(

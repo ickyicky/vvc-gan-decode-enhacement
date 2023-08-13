@@ -55,16 +55,16 @@ from torchvision.models.resnet import ResNet, BasicBlock
 #         return self.model(x)
 
 
-class Discriminator(DenseNet):
-    def __init__(self):
-        # Densenet-BC, densenet-121
-        super().__init__(num_classes=1)
-
-
-# class Discriminator(ResNet):
+# class Discriminator(DenseNet):
 #     def __init__(self):
-#         # resnet50
-#         super().__init__(BasicBlock, [2, 2, 2, 2], num_classes=1)
+#         # Densenet-BC, densenet-121
+#         super().__init__(num_classes=1)
+
+
+class Discriminator(ResNet):
+    def __init__(self):
+        # resnet50
+        super().__init__(BasicBlock, [2, 2, 2, 2], num_classes=1)
 
 
 if __name__ == "__main__":

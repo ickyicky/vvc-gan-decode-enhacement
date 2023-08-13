@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
+from torchmetrics.functional.classification import accuracy
 from typing import Tuple
 from .dataset import VVCDataset
 from pytorch_msssim import SSIM, MS_SSIM
@@ -16,10 +17,10 @@ class GANModule(pl.LightningModule):
         self,
         enhancer,
         discriminator,
+        enhancer_lr: float = 1e-4,
+        discriminator_lr: float = 1e-3,
         # enhancer_lr: float = 1e-4,
-        # discriminator_lr: float = 1e-3,
-        enhancer_lr: float = 1e-5,
-        discriminator_lr: float = 1e-6,
+        # discriminator_lr: float = 1e-4,
         betas: Tuple[float, float] = (0.5, 0.999),
         num_samples: int = 6,
         enhancer_min_loss: float = 0.25,
@@ -153,6 +154,7 @@ class GANModule(pl.LightningModule):
         valid = valid.type_as(orig_chunks)
         real_pred = self.discriminator(orig_chunks)
         real_loss = self.adversarial_loss(real_pred, valid)
+        real_accuracy = accuracy(real_pred, valid, task="binary")
 
         # how well can it label as fake?
         fake = torch.zeros(orig_chunks.size(0), 1)
@@ -160,6 +162,9 @@ class GANModule(pl.LightningModule):
 
         fake_preds = self.discriminator(fake_chunks)
         fake_loss = self.adversarial_loss(fake_preds, fake)
+        fake_accuracy = accuracy(fake_preds, fake, task="binary")
+
+        acc = (real_accuracy + fake_accuracy) / 2
 
         # discriminator loss is the average of these
         d_loss = (real_loss + fake_loss) / 2
@@ -170,6 +175,9 @@ class GANModule(pl.LightningModule):
         self.log(f"{prefix}d_loss", d_loss, prog_bar=True)
         self.log(f"{prefix}d_real_loss", real_loss, prog_bar=False)
         self.log(f"{prefix}d_fake_loss", fake_loss, prog_bar=False)
+        self.log(f"{prefix}d_real_acc", real_accuracy, prog_bar=False)
+        self.log(f"{prefix}d_fake_acc", fake_accuracy, prog_bar=False)
+        self.log(f"{prefix}d_acc", acc, prog_bar=True)
 
         return fake_preds, real_pred, d_loss
 
@@ -405,13 +413,13 @@ class GANModule(pl.LightningModule):
             self.enhancer.parameters(),
             lr=self.enhancer_lr,
             betas=self.betas,
-            weight_decay=0.01,
+            weight_decay=self.enhancer_lr / 10,
         )
         opt_d = torch.optim.SGD(
             self.discriminator.parameters(),
             lr=self.discriminator_lr,
             momentum=0.9,
-            weight_decay=1e-4,
+            weight_decay=self.discriminator_lr / 10,
         )
 
         if self.mode == "gan":
@@ -421,7 +429,7 @@ class GANModule(pl.LightningModule):
                 {
                     "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                         opt_d,
-                        milestones=[25, 50, 100, 150],
+                        milestones=[20, 50, 100, 150],
                         gamma=0.1,
                     ),
                     "interval": "epoch",
@@ -430,7 +438,7 @@ class GANModule(pl.LightningModule):
                 {
                     "scheduler": torch.optim.lr_scheduler.MultiStepLR(
                         opt_g,
-                        milestones=[15, 25, 50, 100, 150],
+                        milestones=[200,600],
                         gamma=0.1,
                     ),
                     "interval": "epoch",
