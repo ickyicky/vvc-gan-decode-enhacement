@@ -31,6 +31,7 @@ class GANModule(pl.LightningModule):
         self.discriminator_lr = self.config.discriminator_lr
 
         self.betas = self.config.betas
+        self.momentum = self.config.momentum
         self.discriminator_min_loss = self.config.discriminator_min_loss
         self.enhancer_min_loss = self.config.enhancer_min_loss
 
