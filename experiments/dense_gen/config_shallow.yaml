@@ -1,5 +1,8 @@
 trainer:
   mode: enhancer
+  enhancer:
+    epochs: 1000
+    enhancer_scheduler_milestones: [200, 600]
 enhancer:
   implementation: dense
   save_to: 'experiments/dense_gen/generator_shallow.pth'

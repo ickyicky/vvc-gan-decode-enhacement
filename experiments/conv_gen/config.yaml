@@ -1,5 +1,8 @@
 trainer:
   mode: enhancer
+  enhancer:
+    epochs: 1000
+    enhancer_scheduler_milestones: [200, 600]
 enhancer:
   implementation: conv
   save_to: 'experiments/conv_gen/generator.pth'
