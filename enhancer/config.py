@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from enum import Enum
-from typing import Tuple, List, Optional, Union
+from typing import Tuple, List, Optional, Any, Dict
 import yaml
 
 
@@ -44,12 +44,22 @@ class BlockConfig(BaseModel):
     padding: int = 1
     stride: int = 1
 
-    num_layers: int = 4
+    num_layers: int = 1
     features: int = 16
+
+    dropout: float = 0.0
 
     transition: Optional[TransitionConfig] = None
 
-    flags: str = ""
+    flags: Dict[str, Any] = {}
+
+
+class ClassifierConfig(BlockConfig):
+    sigmoid: bool = False
+
+
+class OutputBlockConfig(BlockConfig):
+    tanh: bool = False
 
 
 class StructureConfig(BaseModel):
@@ -58,18 +68,17 @@ class StructureConfig(BaseModel):
 
 class NetworkConfig(BaseModel):
     implementation: NetworkImplementation = NetworkImplementation.DENSE
+    reflect_padding: bool = True
+    prelu: bool = True
+
     structure: StructureConfig = StructureConfig()
+    classifier: Optional[ClassifierConfig] = None
+    output_block: Optional[OutputBlockConfig] = None
 
     load_from: Optional[str] = None
     save_to: Optional[str] = None
 
     input_shape: Tuple[int, int, int] = (132, 132, 3)
-    output_shape: Tuple[int, int, int] = (132, 132, 3)
-
-    output_kernel_size: int = 1
-    output_stride: int = 1
-    output_padding: int = 0
-    no_output_block: bool = False
 
 
 class EnhancerConfig(NetworkConfig):
@@ -80,13 +89,7 @@ class EnhancerConfig(NetworkConfig):
 
 
 class DiscriminatorConfig(NetworkConfig):
-    output_shape: Tuple[int, int, int] = (1, 1, 1)
-
-    output_kernel_size: int = 4
-    output_stride: int = 1
-    output_padding: int = 0
-
-    out_sum_features: int = 4096
+    pass
 
 
 class DatasetConfig(BaseModel):

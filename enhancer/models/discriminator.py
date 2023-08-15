@@ -19,20 +19,10 @@ class Discriminator(nn.Module):
             NetworkImplementation.CONV: ConvNet,
         }[config.implementation](
             config,
-            initial_features=config.input_shape[2],
-        )
-
-        self.output = nn.Sequential(
-            nn.BatchNorm2d(config.out_sum_features),
-            nn.PReLU(),
-            nn.AvgPool2d(1),
-            nn.Flatten(1),
-            nn.Linear(config.out_sum_features, 1),
         )
 
     def forward(self, x):
-        output = self.model(x)
-        return self.output(output)
+        return self.model(x)
 
 
 if __name__ == "__main__":

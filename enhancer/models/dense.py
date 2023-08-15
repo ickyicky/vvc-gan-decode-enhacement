@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 from pydantic import validate_arguments
-from ..config import NetworkConfig, TransitionConfig, TransitionMode
+from ..config import NetworkConfig, TransitionConfig, TransitionMode, BlockConfig
 
 
 class DenseLayer(nn.Module):
@@ -11,11 +12,7 @@ class DenseLayer(nn.Module):
     def __init__(
         self,
         num_input_features: int,
-        growth_rate: int,
-        kernel_size: int = 3,
-        stride: int = 1,
-        padding: int = 1,
-        no_bn: bool = False,
+        config: BlockConfig,
     ) -> None:
         """__init__.
 
@@ -32,37 +29,32 @@ class DenseLayer(nn.Module):
         :rtype: None
         """
         super().__init__()
+        self.dropout = config.dropout
 
-        if no_bn:
-            parts = [
-                nn.BatchNorm2d(num_input_features),
-                nn.PReLU(),
-            ]
-        else:
-            parts = []
-
-        num_features = num_input_features
-
-        self.model = nn.Sequential(
-            *parts,
+        self.bottleneck = nn.Sequential(
+            nn.BatchNorm2d(num_input_features),
+            nn.PReLU(),
             nn.Conv2d(
-                num_features,
-                growth_rate,
+                num_input_features,
+                config.growth_rate * config.bn_size,
                 kernel_size=1,
                 stride=1,
                 padding=0,
                 bias=False,
             ),
-            nn.BatchNorm2d(num_features),
+            nn.BatchNorm2d(config.growth_rate * config.bn_size),
             nn.PReLU(),
+        )
+
+        self.conv = nn.Sequential(
             nn.ReflectionPad2d(
-                padding,
+                config.padding,
             ),
             nn.Conv2d(
-                num_features,
-                growth_rate,
-                kernel_size=kernel_size,
-                stride=stride,
+                config.growth_rate * config.bn_size,
+                config.growth_rate,
+                kernel_size=config.kernel_size,
+                stride=config.stride,
                 padding=0,
                 bias=False,
             ),
@@ -75,7 +67,12 @@ class DenseLayer(nn.Module):
         :type _input: Tensor
         :rtype: Tensor
         """
-        output = self.model(_input)
+        bottleneck = self.bottneleck(_input)
+        output = self.conv(bottleneck)
+
+        if self.dropout > 0:
+            output = F.dropout(output, p=self.dropout, training=self.training)
+
         return torch.cat((_input, output), 1)
 
 
@@ -85,12 +82,7 @@ class DenseBlock(nn.Module):
     def __init__(
         self,
         num_input_features: int,
-        growth_rate: int,
-        num_layers: int = 1,
-        kernel_size: int = 3,
-        stride: int = 1,
-        padding: int = 1,
-        no_bn: bool = False,
+        config: BlockConfig,
     ) -> None:
         """__init__.
 
@@ -113,18 +105,14 @@ class DenseBlock(nn.Module):
         layers = []
         num_features = num_input_features
 
-        for i in range(num_layers):
+        for i in range(config.num_layers):
             layers.append(
                 DenseLayer(
                     num_input_features=num_features,
-                    growth_rate=growth_rate,
-                    kernel_size=kernel_size,
-                    stride=stride,
-                    padding=padding,
-                    no_bn=no_bn and i == 0,
+                    config=config,
                 )
             )
-            num_features += growth_rate
+            num_features += config.growth_rate
 
         self.model = nn.Sequential(
             *layers,
@@ -158,13 +146,13 @@ class Transition(nn.Module):
         """
         super().__init__()
         self.bn = nn.BatchNorm2d(num_input_features)
+        self.relu = nn.PReLU()
         self.conv = nn.Conv2d(
             num_input_features,
             num_output_features,
             kernel_size=1,
             bias=False,
         )
-        self.relu = nn.PReLU()
         self.rescale = None
 
         if conf.mode == TransitionMode.down:
@@ -231,6 +219,9 @@ class DenseNet(nn.Module):
         super().__init__()
 
         num_features = initial_features
+        self.features = nn.Sequential(
+            nn.Conv2d(initial_features, num_features, kernel_size=7, stride=1, padding=3),
+        )
 
         # dense blocks
         dense_blocks = []
