@@ -67,7 +67,7 @@ class StructureConfig(BaseModel):
 
 
 class NetworkConfig(BaseModel):
-    implementation: NetworkImplementation = NetworkImplementation.DENSE
+    implementation: NetworkImplementation = NetworkImplementation.CONV
     reflect_padding: bool = True
     prelu: bool = True
 
