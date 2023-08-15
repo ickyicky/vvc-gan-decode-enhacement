@@ -55,11 +55,11 @@ class BlockConfig(BaseModel):
 
 
 class ClassifierConfig(BlockConfig):
-    sigmoid: bool = False
+    sigmoid: bool = True
 
 
 class OutputBlockConfig(BlockConfig):
-    tanh: bool = True
+    tanh: bool = False
 
 
 class StructureConfig(BaseModel):
