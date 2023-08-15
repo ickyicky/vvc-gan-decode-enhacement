@@ -1,8 +1,8 @@
 trainer:
   mode: enhancer
   enhancer:
-    epochs: 1000
-    enhancer_scheduler_milestones: [200, 600]
+    epochs: 100
+    enhancer_scheduler_milestones: [20, 60]
 enhancer:
   implementation: res
   save_to: 'experiments/res_gen/generator_shallow.pth'

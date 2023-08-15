@@ -2,7 +2,7 @@ trainer:
   mode: discriminator
   discriminator:
     epochs: 100
-    discriminator_lr: 0.05
+    discriminator_lr: 0.005
     discriminator_scheduler_milestones: []
 discriminator:
   implementation: conv

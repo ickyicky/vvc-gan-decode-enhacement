@@ -23,9 +23,11 @@ class Discriminator(nn.Module):
         )
 
         self.output = nn.Sequential(
+            nn.BatchNorm2d(config.out_sum_features),
+            nn.PReLU(),
+            nn.AvgPool2d(1),
             nn.Flatten(1),
             nn.Linear(config.out_sum_features, 1),
-            nn.Sigmoid(),
         )
 
     def forward(self, x):

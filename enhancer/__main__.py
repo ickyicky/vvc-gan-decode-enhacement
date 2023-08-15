@@ -44,6 +44,8 @@ if __name__ == "__main__":
 
     if config.enhancer.load_from:
         enhancer.load_state_dict(torch.load(config.enhancer.load_from))
+    else:
+        enhancer.apply(weights_init)
 
     discriminator = Discriminator(
         config=config.discriminator,
@@ -51,6 +53,8 @@ if __name__ == "__main__":
 
     if config.discriminator.load_from:
         discriminator.load_state_dict(torch.load(config.discriminator.load_from))
+    else:
+        discriminator.apply(weights_init)
 
     module = TrainerModule(
         config.trainer,

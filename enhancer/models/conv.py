@@ -171,14 +171,6 @@ class ConvNet(nn.Module):
                 ),
             )
 
-        # Official init from torch repo.
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, 0.0, 0.02)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.normal_(m.weight, 1.0, 0.02)
-                nn.init.constant_(m.bias, 0)
-
     def forward(self, _input: Tensor) -> Tensor:
         data = self.blocks(_input)
 

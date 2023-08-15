@@ -45,6 +45,16 @@ class DenseLayer(nn.Module):
 
         self.model = nn.Sequential(
             *parts,
+            nn.Conv2d(
+                num_features,
+                growth_rate,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(num_features),
+            nn.PReLU(),
             nn.ReflectionPad2d(
                 padding,
             ),
@@ -275,15 +285,6 @@ class DenseNet(nn.Module):
                 ),
             )
 
-        # Official init from torch repo.
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.constant_(m.bias, 0)
 
     def forward(self, _input: Tensor) -> Tensor:
         data = self.dense_blocks(_input)
