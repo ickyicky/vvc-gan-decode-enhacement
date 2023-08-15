@@ -2,7 +2,30 @@ import torch.nn as nn
 from torch import Tensor
 from pydantic import validate_arguments
 from typing import Optional
-from ..config import NetworkConfig, TransitionConfig
+from ..config import NetworkConfig
+from .dense import Classifier
+from .conv import ConvLayer, OutputBlock, get_activation
+
+
+def downsample_layer(in_channels: int, out_channels: int, stride: int) -> nn.Module:
+    """downsample_layer.
+
+    :param in_channels:
+    :type in_channels: int
+    :param out_channels:
+    :type out_channels: int
+    :rtype: nn.Module
+    """
+    return nn.Sequential(
+        nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=1,
+            stride=stride,
+            bias=False,
+        ),
+        nn.BatchNorm2d(out_channels),
+    )
 
 
 class ResLayer(nn.Module):
@@ -10,55 +33,45 @@ class ResLayer(nn.Module):
 
     def __init__(
         self,
-        num_input_features: int,
-        features: int,
+        in_channels: int,
+        out_channels: int,
         kernel_size: int = 3,
-        stride_0: int = 1,
         stride: int = 1,
         padding: int = 1,
-        no_bn: bool = False,
-        resample: Optional[nn.Module] = None,
+        reflect_padding: bool = True,
+        activation: str = "prelu",
     ) -> None:
         super().__init__()
 
-        if no_bn:
-            parts = [
-                nn.BatchNorm2d(num_input_features),
-                nn.PReLU(),
-            ]
-        else:
-            parts = []
-
-        num_features = num_input_features
-
-        self.model = nn.Sequential(
-            *parts,
-            nn.ReflectionPad2d(
-                padding,
-            ),
-            nn.Conv2d(
-                num_features,
-                features,
-                kernel_size=kernel_size,
-                stride=stride_0,
-                padding=0,
-                bias=False,
-            ),
-            nn.BatchNorm2d(features),
-            nn.ReflectionPad2d(
-                padding,
-            ),
-            nn.Conv2d(
-                features,
-                features,
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=0,
-                bias=False,
-            ),
+        self.conv1 = ConvLayer(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            reflect_padding=reflect_padding,
+            activation=activation,
         )
 
-        self.resample = resample
+        self.conv2 = ConvLayer(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=padding,
+            reflect_padding=reflect_padding,
+            activation="none",
+        )
+
+        self.downsample = None
+        if in_channels != out_channels:
+            self.downsample = downsample_layer(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                stride=stride,
+            )
+
+        self.activation = get_activation(activation)
 
     def forward(self, _input: Tensor) -> Tensor:
         """forward.
@@ -67,83 +80,95 @@ class ResLayer(nn.Module):
         :type _input: Tensor
         :rtype: Tensor
         """
-        output = self.model(_input)
+        identity = _input
 
-        if self.resample is not None:
-            return output + self.resample(_input)
+        out = self.conv1(_input)
+        out = self.conv2(out)
 
-        return output + _input
+        if self.downsample is not None:
+            identity = self.downsample(_input)
+
+        out += identity
+        out = self.activation(out)
+
+        return out
 
 
-class ResBlock(nn.Module):
+class ResBlock(nn.Sequential):
     """ResBlock."""
 
+    @validate_arguments
     def __init__(
         self,
-        transition: TransitionConfig,
-        num_input_features: int,
-        features: int,
-        num_layers: int = 1,
+        num_layers: int,
+        in_channels: int,
+        out_channels: int,
         kernel_size: int = 3,
         stride: int = 1,
         padding: int = 1,
-        no_bn: bool = False,
+        reflect_padding: bool = True,
+        activation: str = "prelu",
     ) -> None:
-        """__init__.
-
-        :param num_input_features:
-        :type num_input_features: int
-        :param features:
-        :type features: int
-        :param layers:
-        :type layers: int
-        :param kernel_size:
-        :type kernel_size: int
-        :param stride:
-        :type stride: int
-        :param padding:
-        :type padding: int
-        :rtype: None
-        """
         super().__init__()
 
-        layers = [
-            ResLayer(
-                num_input_features=num_input_features,
-                features=features,
+        num_channels = in_channels
+
+        for i in range(num_layers):
+            layer = ResLayer(
+                in_channels=num_channels,
+                out_channels=out_channels,
                 kernel_size=kernel_size,
-                stride_0=transition.stride,
-                stride=stride,
+                stride=stride if i == 0 else 1,
                 padding=padding,
-                no_bn=no_bn,
-                resample=nn.Sequential(
-                    nn.Conv2d(
-                        num_input_features,
-                        features,
-                        kernel_size=1,
-                        stride=transition.stride,
-                    ),
-                    nn.BatchNorm2d(features),
-                ),
+                reflect_padding=reflect_padding,
+                activation=activation,
             )
-        ]
+            num_channels = out_channels
+            self.add_module(f"dense_layer_{i}", layer)
 
-        for i in range(1, num_layers):
-            layers.append(
-                ResLayer(
-                    num_input_features=features,
-                    features=features,
-                    kernel_size=kernel_size,
-                    stride_0=stride,
-                    stride=stride,
-                    padding=padding,
-                    no_bn=False,
-                )
-            )
 
-        self.model = nn.Sequential(
-            *layers,
+class ResFeatures(nn.Module):
+    @validate_arguments
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 7,
+        stride: int = 2,
+        padding: int = 3,
+        reflect_padding: bool = True,
+        activation: str = "prelu",
+        pool: bool = False,
+        res: bool = False,
+    ) -> None:
+        super().__init__()
+
+        self.conv = ConvLayer(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            reflect_padding=reflect_padding,
+            activation="none",
         )
+
+        self.downsample = None
+        if res and in_channels != out_channels:
+            self.downsample = downsample_layer(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                stride=stride,
+            )
+
+        self.activation = get_activation(activation)
+
+        if pool:
+            self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        else:
+            self.pool = None
+
+        self._res = res
 
     def forward(self, _input: Tensor) -> Tensor:
         """forward.
@@ -152,40 +177,25 @@ class ResBlock(nn.Module):
         :type _input: Tensor
         :rtype: Tensor
         """
-        return self.model(_input)
+        output = self.conv(_input)
+
+        if self._res:
+            identity = _input
+
+            if self.downsample is not None:
+                identity = self.downsample(_input)
+
+            output += identity
+
+        output = self.activation(output)
+
+        if self.pool is not None:
+            output = self.pool(output)
+
+        return output
 
 
-class ConvLayer(nn.Module):
-    def __init__(
-        self,
-        in_features,
-        out_features,
-        kernel_size,
-        stride,
-        padding,
-    ) -> None:
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.ReflectionPad2d(
-                padding,
-            ),
-            nn.Conv2d(
-                in_features,
-                out_features,
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=0,
-                bias=False,
-            ),
-            nn.BatchNorm2d(out_features),
-            nn.PReLU(),
-        )
-
-    def forward(self, x):
-        return self.model(x)
-
-
-class ResNet(nn.Module):
+class ResNet(nn.Sequential):
     """
     ResNet-based network structure
     """
@@ -194,60 +204,64 @@ class ResNet(nn.Module):
     def __init__(
         self,
         config: NetworkConfig,
-        initial_features: int,
+        initial_features: Optional[int] = None,
     ) -> None:
         super().__init__()
 
-        num_features = initial_features
+        num_channels = initial_features or config.input_shape[2]
 
-        # res blocks
-        res_blocks = []
-        for i, block_conf in enumerate(config.structure.blocks):
-            if block_conf.flags == "nores":
-                res_blocks.append(
-                    ConvLayer(
-                        in_features=num_features,
-                        out_features=block_conf.features,
-                        kernel_size=block_conf.kernel_size,
-                        padding=block_conf.padding,
-                        stride=block_conf.stride,
-                    )
-                )
-                num_features = block_conf.features
-                continue
-
-            res_blocks.append(
-                ResBlock(
-                    transition=block_conf.transition,
-                    num_input_features=num_features,
-                    features=block_conf.features,
-                    kernel_size=block_conf.kernel_size,
-                    padding=block_conf.padding,
-                    num_layers=block_conf.num_layers,
-                    no_bn=i == 0,
-                )
-            )
-            num_features = block_conf.features
-
-        self.res_blocks = nn.Sequential(*res_blocks)
-
-        # output part
-        self.output_block = None
-        if config.no_output_block is False:
-            self.output_block = nn.Sequential(
-                nn.Conv2d(
-                    num_features,
-                    config.output_shape[2],
-                    kernel_size=config.output_kernel_size,
-                    stride=config.output_stride,
-                    padding=config.output_padding,
+        if config.features:
+            self.add_module(
+                "channels",
+                ResFeatures(
+                    in_channels=num_channels,
+                    out_channels=config.features.features,
+                    kernel_size=config.features.kernel_size,
+                    stride=config.features.stride,
+                    padding=config.features.padding,
+                    reflect_padding=config.reflect_padding,
+                    activation=config.activation,
+                    pool=config.features.pool,
+                    res=config.features.res,
                 ),
             )
 
-    def forward(self, _input: Tensor) -> Tensor:
-        data = self.res_blocks(_input)
+            num_channels = config.features.features
 
-        if self.output_block is not None:
-            return self.output_block(data)
+        for i, block_config in enumerate(config.structure.blocks):
+            block = ResBlock(
+                num_layers=block_config.num_layers,
+                in_channels=num_channels,
+                out_channels=block_config.features,
+                kernel_size=block_config.kernel_size,
+                stride=block_config.stride,
+                padding=block_config.padding,
+                reflect_padding=config.reflect_padding,
+                activation=config.activation,
+            )
+            num_channels = block_config.features
+            self.add_module(f"block{i}", block)
 
-        return data
+        if config.classifier:
+            self.add_module(
+                "classifier",
+                Classifier(
+                    in_channels=num_channels,
+                    out_channels=config.classifier.features,
+                    sigmoid=config.classifier.sigmoid,
+                ),
+            )
+
+        if config.output_block:
+            self.add_module(
+                "output_block",
+                OutputBlock(
+                    in_channels=num_channels,
+                    out_channels=config.output_block.features,
+                    kernel_size=config.output_block.kernel_size,
+                    stride=config.output_block.stride,
+                    padding=config.output_block.padding,
+                    reflect_padding=config.reflect_padding,
+                    tanh=config.output_block.tanh,
+                ),
+            )

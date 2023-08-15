@@ -36,4 +36,4 @@ if __name__ == "__main__":
     random_image = torch.rand((132, 3, 132, 132))
     print(g(random_image).shape)
 
-    summary(g, (3, 132, 132), device="cpu")
+    summary(g, (3, 132, 132), device="cpu", depth=10)

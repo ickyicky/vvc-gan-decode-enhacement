@@ -1,12 +1,21 @@
 import torch.nn as nn
-from torch import Tensor
-import torch.nn.functional as F
 from pydantic import validate_arguments
 from typing import Optional
 from ..config import NetworkConfig
 
 
-class ConvLayer(nn.Module):
+def get_activation(activation: str) -> Optional[nn.Module]:
+    if activation == "prelu":
+        return nn.PReLU()
+    elif activation == "relu":
+        return nn.ReLU(inplace=True)
+    elif activation == "leakyrelu":
+        return nn.LeakyReLU(0.2, inplace=True)
+    else:
+        raise ValueError(f"Unknown activation: {activation}")
+
+
+class ConvLayer(nn.Sequential):
     """ConvLayer."""
 
     @validate_arguments
@@ -19,52 +28,43 @@ class ConvLayer(nn.Module):
         padding: int = 1,
         dropout: float = 0.0,
         reflect_padding: bool = True,
-        prelu: bool = True,
+        activation: str = "prelu",
     ) -> None:
         super().__init__()
 
-        self.pad = None
         if reflect_padding and padding > 0:
-            self.pad = nn.ReflectionPad2d(
-                padding,
+            self.add_module(
+                "pad",
+                nn.ReflectionPad2d(
+                    padding,
+                ),
             )
 
-        self.dropout = dropout
-
-        self.conv = nn.Conv2d(
-            in_channels,
-            out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding if not reflect_padding else 0,
-            bias=False,
+        self.add_module(
+            "conv",
+            nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding if not reflect_padding else 0,
+                bias=False,
+            ),
         )
 
-        self.bn = nn.BatchNorm2d(out_channels)
+        self.add_module(
+            "bn",
+            nn.BatchNorm2d(out_channels),
+        )
 
-        if prelu:
-            self.activation = nn.PReLU()
-        else:
-            self.activation = nn.ReLU()
+        if activation != "none":
+            self.add_module("activation", get_activation(activation))
 
-    def forward(self, _input: Tensor) -> Tensor:
-        """forward.
-
-        :param _input:
-        :type _input: Tensor
-        :rtype: Tensor
-        """
-        if self.pad is not None:
-            _input = self.pad(_input)
-
-        data = self.conv(_input)
-        data = self.bn(data)
-        data = self.activation(data)
-
-        if self.dropout > 0:
-            data = F.dropout(data, p=self.dropout, training=self.training)
-
-        return data
+        if dropout > 0:
+            self.add_module(
+                "dropout",
+                nn.Dropout2d(p=dropout),
+            )
 
 
 class ConvBlock(nn.Sequential):
@@ -81,7 +81,7 @@ class ConvBlock(nn.Sequential):
         padding: int = 1,
         dropout: float = 0.0,
         reflect_padding: bool = True,
-        prelu: bool = True,
+        activation: str = "prelu",
     ) -> None:
         super().__init__()
 
@@ -95,7 +95,7 @@ class ConvBlock(nn.Sequential):
                 padding=padding,
                 dropout=dropout,
                 reflect_padding=reflect_padding,
-                prelu=prelu,
+                activation=activation,
             ),
         )
 
@@ -108,7 +108,7 @@ class ConvBlock(nn.Sequential):
                 padding=padding,
                 dropout=dropout,
                 reflect_padding=reflect_padding,
-                prelu=prelu,
+                activation=activation,
             )
             self.add_module(f"conv{i}", layer)
 
@@ -202,6 +202,34 @@ class Classifier(nn.Sequential):
             )
 
 
+class Features(ConvLayer):
+    @validate_arguments
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 7,
+        stride: int = 2,
+        padding: int = 3,
+        reflect_padding: bool = True,
+        activation: str = "prelu",
+        pool: bool = False,
+        dense: bool = False,
+    ) -> None:
+        super().__init__(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            reflect_padding=reflect_padding,
+            activation=activation,
+        )
+
+        if pool:
+            self.add_module("pool0", nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+
+
 class ConvNet(nn.Sequential):
     """
     ConvNet-based network structure
@@ -217,6 +245,23 @@ class ConvNet(nn.Sequential):
 
         num_features = initial_features or config.input_shape[2]
 
+        if config.features:
+            self.add_module(
+                "features",
+                Features(
+                    in_channels=num_features,
+                    out_channels=config.features.features,
+                    kernel_size=config.features.kernel_size,
+                    stride=config.features.stride,
+                    padding=config.features.padding,
+                    reflect_padding=config.reflect_padding,
+                    activation=config.activation,
+                    pool=config.features.pool,
+                ),
+            )
+
+            num_features = config.features.features
+
         for i, block_config in enumerate(config.structure.blocks):
             block = ConvBlock(
                 num_layers=block_config.num_layers,
@@ -227,7 +272,7 @@ class ConvNet(nn.Sequential):
                 padding=block_config.padding,
                 dropout=block_config.dropout,
                 reflect_padding=config.reflect_padding,
-                prelu=config.prelu,
+                activation=config.activation,
             )
             num_features = block_config.features
             self.add_module(f"block{i}", block)

@@ -32,8 +32,8 @@ class TransitionMode(Enum):
 
 
 class TransitionConfig(BaseModel):
-    kernel_size: int = 4
-    padding: int = 2
+    kernel_size: int = 1
+    padding: int = 0
     stride: int = 1
 
     mode: TransitionMode
@@ -51,8 +51,6 @@ class BlockConfig(BaseModel):
 
     transition: Optional[TransitionConfig] = None
 
-    flags: Dict[str, Any] = {}
-
 
 class ClassifierConfig(BlockConfig):
     sigmoid: bool = True
@@ -62,6 +60,12 @@ class OutputBlockConfig(BlockConfig):
     tanh: bool = False
 
 
+class FeaturesConfig(BlockConfig):
+    dense: bool = False
+    res: bool = False
+    pool: bool = False
+
+
 class StructureConfig(BaseModel):
     blocks: List[BlockConfig] = [BlockConfig()]
 
@@ -69,9 +73,11 @@ class StructureConfig(BaseModel):
 class NetworkConfig(BaseModel):
     implementation: NetworkImplementation = NetworkImplementation.CONV
     reflect_padding: bool = True
-    prelu: bool = True
+    activation: str = "prelu"
+    bn_size: int = 2
 
     structure: StructureConfig = StructureConfig()
+    features: Optional[FeaturesConfig] = None
     classifier: Optional[ClassifierConfig] = None
     output_block: Optional[OutputBlockConfig] = None
 

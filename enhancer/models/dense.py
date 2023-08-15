@@ -1,62 +1,53 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import Tensor
 from pydantic import validate_arguments
-from ..config import NetworkConfig, TransitionConfig, TransitionMode, BlockConfig
+from typing import Optional
+from ..config import NetworkConfig, TransitionMode
+from .conv import ConvLayer, OutputBlock, Features, get_activation
 
 
-class DenseLayer(nn.Module):
+class DenseLayer(nn.Sequential):
     """DenseLayer."""
 
+    @validate_arguments
     def __init__(
         self,
-        num_input_features: int,
-        config: BlockConfig,
+        in_channels: int,
+        growth_rate: int,
+        kernel_size: int = 3,
+        stride: int = 1,
+        padding: int = 1,
+        dropout: float = 0.0,
+        reflect_padding: bool = True,
+        activation: str = "prelu",
+        bn_size: int = 2,
     ) -> None:
-        """__init__.
-
-        :param num_input_features:
-        :type num_input_features: int
-        :param growth_rate:
-        :type growth_rate: int
-        :param kernel_size:
-        :type kernel_size: int
-        :param stride:
-        :type stride: int
-        :param padding:
-        :type padding: int
-        :rtype: None
-        """
         super().__init__()
-        self.dropout = config.dropout
-
-        self.bottleneck = nn.Sequential(
-            nn.BatchNorm2d(num_input_features),
-            nn.PReLU(),
-            nn.Conv2d(
-                num_input_features,
-                config.growth_rate * config.bn_size,
+        self.add_module(
+            "bottleneck",
+            ConvLayer(
+                in_channels=in_channels,
+                out_channels=bn_size * growth_rate,
                 kernel_size=1,
                 stride=1,
                 padding=0,
-                bias=False,
+                reflect_padding=reflect_padding,
+                activation=activation,
             ),
-            nn.BatchNorm2d(config.growth_rate * config.bn_size),
-            nn.PReLU(),
         )
 
-        self.conv = nn.Sequential(
-            nn.ReflectionPad2d(
-                config.padding,
-            ),
-            nn.Conv2d(
-                config.growth_rate * config.bn_size,
-                config.growth_rate,
-                kernel_size=config.kernel_size,
-                stride=config.stride,
-                padding=0,
-                bias=False,
+        self.add_module(
+            "conv",
+            ConvLayer(
+                in_channels=bn_size * growth_rate,
+                out_channels=growth_rate,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dropout=dropout,
+                reflect_padding=reflect_padding,
+                activation=activation,
             ),
         )
 
@@ -67,145 +58,174 @@ class DenseLayer(nn.Module):
         :type _input: Tensor
         :rtype: Tensor
         """
-        bottleneck = self.bottneleck(_input)
-        output = self.conv(bottleneck)
-
-        if self.dropout > 0:
-            output = F.dropout(output, p=self.dropout, training=self.training)
-
+        output = super().forward(_input)
         return torch.cat((_input, output), 1)
 
 
-class DenseBlock(nn.Module):
+class DenseBlock(nn.Sequential):
     """DenseBlock."""
 
+    @validate_arguments
     def __init__(
         self,
-        num_input_features: int,
-        config: BlockConfig,
+        num_layers: int,
+        in_channels: int,
+        growth_rate: int,
+        kernel_size: int = 3,
+        stride: int = 1,
+        padding: int = 1,
+        dropout: float = 0.0,
+        reflect_padding: bool = True,
+        activation: str = "prelu",
+        bn_size: int = 2,
     ) -> None:
-        """__init__.
-
-        :param num_input_features:
-        :type num_input_features: int
-        :param growth_rate:
-        :type growth_rate: int
-        :param layers:
-        :type layers: int
-        :param kernel_size:
-        :type kernel_size: int
-        :param stride:
-        :type stride: int
-        :param padding:
-        :type padding: int
-        :rtype: None
-        """
         super().__init__()
 
-        layers = []
-        num_features = num_input_features
+        num_features = in_channels
 
-        for i in range(config.num_layers):
-            layers.append(
-                DenseLayer(
-                    num_input_features=num_features,
-                    config=config,
-                )
+        for i in range(num_layers):
+            layer = DenseLayer(
+                in_channels=num_features,
+                growth_rate=growth_rate,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dropout=dropout,
+                reflect_padding=reflect_padding,
+                activation=activation,
+                bn_size=bn_size,
             )
-            num_features += config.growth_rate
-
-        self.model = nn.Sequential(
-            *layers,
-        )
-
-    def forward(self, _input: Tensor) -> Tensor:
-        """forward.
-
-        :param _input:
-        :type _input: Tensor
-        :rtype: Tensor
-        """
-        return self.model(_input)
+            num_features += growth_rate
+            self.add_module(f"dense_layer_{i}", layer)
 
 
-class Transition(nn.Module):
+class Transition(nn.Sequential):
     """Transition."""
 
     def __init__(
         self,
-        conf: TransitionConfig,
-        num_input_features: int,
-        num_output_features: int,
+        in_channels: int,
+        kernel_size: int = 1,
+        stride: int = 1,
+        padding: int = 1,
+        reflect_padding: bool = True,
+        activation: str = "prelu",
+        mode: TransitionMode = TransitionMode.same,
     ):
-        """__init__.
-
-        :param num_input_features:
-        :type num_input_features: int
-        :param num_output_features:
-        :type num_output_features: int
-        """
         super().__init__()
-        self.bn = nn.BatchNorm2d(num_input_features)
-        self.relu = nn.PReLU()
-        self.conv = nn.Conv2d(
-            num_input_features,
-            num_output_features,
-            kernel_size=1,
-            bias=False,
-        )
-        self.rescale = None
+        out_channels = in_channels // 2
 
-        if conf.mode == TransitionMode.down:
-            self.rescale = nn.AvgPool2d(kernel_size=2, stride=2)
+        if reflect_padding and padding > 0:
+            self.add_module(
+                "pad",
+                nn.ReflectionPad2d(
+                    padding,
+                ),
+            )
 
-    def forward(self, x: Tensor) -> Tensor:
-        """forward.
-
-        :param x:
-        :type x: Tensor
-        :rtype: Tensor
-        """
-        out = self.bn(x)
-        out = self.relu(out)
-        out = self.conv(out)
-
-        if self.rescale is not None:
-            out = self.rescale(out)
-
-        return out
-
-
-class ConvLayer(nn.Module):
-    def __init__(
-        self,
-        in_features,
-        out_features,
-        kernel_size,
-        stride,
-        padding,
-    ) -> None:
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.ReflectionPad2d(
-                padding,
-            ),
+        self.add_module(
+            "conv",
             nn.Conv2d(
-                in_features,
-                out_features,
+                in_channels,
+                out_channels,
                 kernel_size=kernel_size,
                 stride=stride,
-                padding=0,
+                padding=padding if not reflect_padding else 0,
                 bias=False,
             ),
-            nn.BatchNorm2d(out_features),
-            nn.PReLU(),
         )
 
-    def forward(self, x):
-        return self.model(x)
+        if mode == TransitionMode.down:
+            self.add_module(
+                "rescale",
+                nn.AvgPool2d(kernel_size=2, stride=2),
+            )
+
+        self.add_module(
+            "bn",
+            nn.BatchNorm2d(out_channels),
+        )
+
+        self.add_module("activation", get_activation(activation))
 
 
-class DenseNet(nn.Module):
+class Classifier(nn.Sequential):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        sigmoid: bool = False,
+    ) -> None:
+        super().__init__()
+
+        self.add_module(
+            "pool2d",
+            nn.AdaptiveAvgPool2d((1, 1)),
+        )
+
+        self.add_module(
+            "flatten",
+            nn.Flatten(1),
+        )
+
+        self.add_module(
+            "linear",
+            nn.Linear(
+                in_channels,
+                out_channels,
+            ),
+        )
+
+        if sigmoid:
+            self.add_module(
+                "sigmoid",
+                nn.Sigmoid(),
+            )
+
+
+class DenseFeatures(Features):
+    @validate_arguments
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 7,
+        stride: int = 2,
+        padding: int = 3,
+        reflect_padding: bool = True,
+        activation: str = "prelu",
+        pool: bool = False,
+        dense: bool = False,
+    ) -> None:
+        super().__init__(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            reflect_padding=reflect_padding,
+            activation=activation,
+            pool=pool,
+        )
+
+        self._dense = dense
+
+    def forward(self, _input: Tensor) -> Tensor:
+        """forward.
+
+        :param _input:
+        :type _input: Tensor
+        :rtype: Tensor
+        """
+        output = super().forward(_input)
+
+        if self._dense:
+            return torch.cat((_input, output), 1)
+
+        return output
+
+
+class DenseNet(nn.Sequential):
     """
     DenseNet-based network structure
     """
@@ -214,73 +234,82 @@ class DenseNet(nn.Module):
     def __init__(
         self,
         config: NetworkConfig,
-        initial_features: int,
+        initial_features: Optional[int] = None,
     ) -> None:
         super().__init__()
 
-        num_features = initial_features
-        self.features = nn.Sequential(
-            nn.Conv2d(initial_features, num_features, kernel_size=7, stride=1, padding=3),
-        )
+        num_features = initial_features or config.input_shape[2]
 
-        # dense blocks
-        dense_blocks = []
-        for i, block_conf in enumerate(config.structure.blocks):
-            if block_conf.flags == "nodense":
-                dense_blocks.append(
-                    ConvLayer(
-                        in_features=num_features,
-                        out_features=block_conf.features,
-                        kernel_size=block_conf.kernel_size,
-                        padding=block_conf.padding,
-                        stride=block_conf.stride,
-                    )
-                )
-                num_features = block_conf.features
-                continue
-
-            dense_blocks.append(
-                DenseBlock(
-                    num_input_features=num_features,
-                    growth_rate=block_conf.features,
-                    kernel_size=block_conf.kernel_size,
-                    padding=block_conf.padding,
-                    num_layers=block_conf.num_layers,
-                    no_bn=i == 0,
-                )
-            )
-            num_features += block_conf.features * block_conf.num_layers
-
-            if block_conf.transition is not None:
-                dense_blocks.append(
-                    Transition(
-                        block_conf.transition,
-                        num_features,
-                        num_features // 2,
-                    )
-                )
-                num_features = num_features // 2
-
-        self.dense_blocks = nn.Sequential(*dense_blocks)
-
-        # output part
-        self.output_block = None
-        if config.no_output_block is False:
-            self.output_block = nn.Sequential(
-                nn.Conv2d(
-                    num_features,
-                    config.output_shape[2],
-                    kernel_size=config.output_kernel_size,
-                    stride=config.output_stride,
-                    padding=config.output_padding,
+        if config.features:
+            self.add_module(
+                "features",
+                DenseFeatures(
+                    in_channels=num_features,
+                    out_channels=config.features.features,
+                    kernel_size=config.features.kernel_size,
+                    stride=config.features.stride,
+                    padding=config.features.padding,
+                    reflect_padding=config.reflect_padding,
+                    activation=config.activation,
+                    pool=config.features.pool,
+                    dense=config.features.dense,
                 ),
             )
 
+            if config.features.dense:
+                num_features += config.features.features
+            else:
+                num_features = config.features.features
 
-    def forward(self, _input: Tensor) -> Tensor:
-        data = self.dense_blocks(_input)
+        for i, block_config in enumerate(config.structure.blocks):
+            block = DenseBlock(
+                num_layers=block_config.num_layers,
+                in_channels=num_features,
+                growth_rate=block_config.features,
+                kernel_size=block_config.kernel_size,
+                stride=block_config.stride,
+                padding=block_config.padding,
+                dropout=block_config.dropout,
+                reflect_padding=config.reflect_padding,
+                activation=config.activation,
+                bn_size=config.bn_size,
+            )
+            num_features += block_config.features * block_config.num_layers
+            self.add_module(f"block{i}", block)
 
-        if self.output_block is not None:
-            return self.output_block(data)
+            if block_config.transition is not None:
+                transition = Transition(
+                    in_channels=num_features,
+                    kernel_size=block_config.transition.kernel_size,
+                    stride=block_config.transition.stride,
+                    padding=block_config.transition.padding,
+                    reflect_padding=config.reflect_padding,
+                    activation=config.activation,
+                    mode=block_config.transition.mode,
+                )
+                num_features = num_features // 2
+                self.add_module(f"transition{i}", transition)
 
-        return data
+        if config.classifier:
+            self.add_module(
+                "classifier",
+                Classifier(
+                    in_channels=num_features,
+                    out_channels=config.classifier.features,
+                    sigmoid=config.classifier.sigmoid,
+                ),
+            )
+
+        if config.output_block:
+            self.add_module(
+                "output_block",
+                OutputBlock(
+                    in_channels=num_features,
+                    out_channels=config.output_block.features,
+                    kernel_size=config.output_block.kernel_size,
+                    stride=config.output_block.stride,
+                    padding=config.output_block.padding,
+                    reflect_padding=config.reflect_padding,
+                    tanh=config.output_block.tanh,
+                ),
+            )

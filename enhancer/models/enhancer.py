@@ -85,4 +85,4 @@ if __name__ == "__main__":
     result = g(torch.rand((1, 3, 132, 132)), torch.rand((1, 6, 1, 1)))
     print(result.shape)
 
-    summary(g, [(3, 132, 132), (6, 1, 1)], device="cpu")
+    summary(g, [(3, 132, 132), (6, 1, 1)], device="cpu", depth=10)

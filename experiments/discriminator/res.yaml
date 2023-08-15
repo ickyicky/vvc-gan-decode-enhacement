@@ -5,30 +5,36 @@ trainer:
     discriminator_lr: 0.001
     discriminator_scheduler_milestones: [20, 60]
 discriminator:
-  implementation: conv
-  save_to: 'experiments/discriminator/conv.pth'
+  implementation: res
+  save_to: 'experiments/discriminator/res.pth'
   features:
     kernel_size: 7
     padding: 3
     stride: 2
     features: 64
     pool: true
+    res: false
   structure:
     blocks:
-      - kernel_size: 4
+      - kernel_size: 3
+        padding: 1
+        stride: 2
+        features: 64
+        num_layers: 1
+      - kernel_size: 3
         padding: 1
         stride: 2
         features: 128
-      - kernel_size: 4
+        num_layers: 1
+      - kernel_size: 3
         padding: 1
         stride: 2
         features: 256
-      - kernel_size: 4
+        num_layers: 1
+      - kernel_size: 3
         padding: 1
         stride: 2
         features: 512
+        num_layers: 1
   classifier:
-    kernel_size: 4
-    padding: 0
-    stride: 4
     features: 1
