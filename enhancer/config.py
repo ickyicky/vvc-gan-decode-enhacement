@@ -59,7 +59,7 @@ class ClassifierConfig(BlockConfig):
 
 
 class OutputBlockConfig(BlockConfig):
-    tanh: bool = False
+    tanh: bool = True
 
 
 class StructureConfig(BaseModel):
