@@ -64,7 +64,7 @@ class ResLayer(nn.Module):
         )
 
         self.downsample = None
-        if in_channels != out_channels:
+        if in_channels != out_channels or stride != 1:
             self.downsample = downsample_layer(
                 in_channels=in_channels,
                 out_channels=out_channels,
@@ -154,7 +154,7 @@ class ResFeatures(nn.Module):
         )
 
         self.downsample = None
-        if res and in_channels != out_channels:
+        if res and (in_channels != out_channels or stride != 1):
             self.downsample = downsample_layer(
                 in_channels=in_channels,
                 out_channels=out_channels,
