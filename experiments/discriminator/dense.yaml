@@ -1,9 +1,9 @@
 trainer:
   mode: discriminator
   discriminator:
-    epochs: 100
+    epochs: 50
     discriminator_lr: 0.001
-    discriminator_scheduler_milestones: [20, 60]
+    discriminator_scheduler_milestones: [10, 20, 60]
 discriminator:
   implementation: dense
   save_to: 'experiments/discriminator/dense.pth'
