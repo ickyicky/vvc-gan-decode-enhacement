@@ -44,6 +44,7 @@ if __name__ == "__main__":
 
     if config.enhancer.load_from:
         enhancer.load_state_dict(torch.load(config.enhancer.load_from))
+        print("loaded enhancer")
     else:
         enhancer.apply(weights_init)
 
@@ -53,6 +54,7 @@ if __name__ == "__main__":
 
     if config.discriminator.load_from:
         discriminator.load_state_dict(torch.load(config.discriminator.load_from))
+        print("loaded discriminator")
     else:
         discriminator.apply(weights_init)
 

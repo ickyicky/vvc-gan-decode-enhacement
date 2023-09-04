@@ -3,6 +3,12 @@ from tqdm import tqdm
 import cv2
 import re
 import numpy as np
+import sys
+
+if len(sys.argv) == 2:
+    ROOT = sys.argv[1]
+else:
+    ROOT = "enhanced"
 
 
 INFO_HEIGHT_REGEX: str = re.compile(r"^\s*Height\s*:\s*(\d+)\s*$")
@@ -49,22 +55,22 @@ def mask(t: str):
     return mask
 
 
-for movie in tqdm(os.listdir("enhanced")):
+for movie in tqdm(os.listdir(ROOT)):
     height, width, frame_rate = read_movie_metadata(movie)
     frames = [None] * 64
-    for params in os.listdir(os.path.join("enhanced", movie)):
-        if not os.path.isdir(os.path.join("enhanced", movie, params)):
+    for params in os.listdir(os.path.join(ROOT, movie)):
+        if not os.path.isdir(os.path.join(ROOT, movie, params)):
             continue
 
-        for frame in os.listdir(os.path.join("enhanced", movie, params)):
-            if not os.path.isdir(os.path.join("enhanced", movie, params, frame)):
+        for frame in os.listdir(os.path.join(ROOT, movie, params)):
+            if not os.path.isdir(os.path.join(ROOT, movie, params, frame)):
                 continue
 
             image = np.zeros((height + 136, width + 136, 3), dtype=np.float32)
 
-            for part in os.listdir(os.path.join("enhanced", movie, params, frame)):
+            for part in os.listdir(os.path.join(ROOT, movie, params, frame)):
                 with open(
-                    os.path.join("enhanced", movie, params, frame, part), "rb"
+                    os.path.join(ROOT, movie, params, frame, part), "rb"
                 ) as f:
                     buff = np.frombuffer(f.read(), dtype=np.float32)
                     buff = np.resize(buff, (3, 132, 132))
@@ -78,9 +84,9 @@ for movie in tqdm(os.listdir("enhanced")):
             image = image[2:, 2:, :][:height, :width, :]
             frames[int(frame.split("_")[0])] = (image * 255).astype(np.ubyte)
             image = cv2.cvtColor(image, cv2.COLOR_YUV2RGB)
-            cv2.imwrite(f"enhanced/{movie}/{params}/{frame}.png", image * 255)
+            cv2.imwrite(f"{ROOT}/{movie}/{params}/{frame}.png", image * 255)
 
-        target = f"enhanced/{movie}/{params}.yuv"
+        target = f"{ROOT}/{movie}/{params}.yuv"
         with open(target, "wb") as f:
             for frame in frames:
                 Y, U, V = cv2.split(frame)

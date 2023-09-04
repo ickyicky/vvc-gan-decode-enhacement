@@ -1,8 +1,9 @@
 trainer:
   mode: enhancer
   enhancer:
-    epochs: 100
-    enhancer_scheduler_milestones: [20, 60]
+    epochs: 1000
+    enhancer_scheduler_milestones: [200, 600]
+    saved_chunk_folder: enhanced/dense_deep
 enhancer:
   implementation: dense
   save_to: 'experiments/enhancer/dense_deep.pth'

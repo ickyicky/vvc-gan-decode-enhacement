@@ -11,22 +11,22 @@ discriminator:
     kernel_size: 7
     padding: 3
     stride: 2
-    features: 64
+    features: 32
     pool: true
   structure:
     blocks:
       - kernel_size: 4
         padding: 1
         stride: 2
+        features: 64
+      - kernel_size: 4
+        padding: 1
+        stride: 2
+        features: 64
+      - kernel_size: 4
+        padding: 1
+        stride: 2
         features: 128
-      - kernel_size: 4
-        padding: 1
-        stride: 2
-        features: 256
-      - kernel_size: 4
-        padding: 1
-        stride: 2
-        features: 512
   classifier:
     kernel_size: 4
     padding: 0

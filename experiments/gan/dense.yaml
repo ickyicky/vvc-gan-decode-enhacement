@@ -1,0 +1,85 @@
+trainer:
+  mode: gan
+  separation_epochs: 0
+  gan:
+    epochs: 200
+    discriminator_lr: 0.001
+    enhancer_lr:      0.0001
+    discriminator_scheduler_milestones: [500]
+    enhancer_scheduler_milestones: [500]
+discriminator:
+  implementation: dense
+  save_to: 'experiments/discriminator/dense.pth'
+  bn_size: 2
+  features:
+    kernel_size: 7
+    padding: 3
+    stride: 2
+    features: 32
+    pool: true
+    dense: false
+  structure:
+    blocks:
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        features: 4
+        num_layers: 3
+        transition:
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        features: 4
+        num_layers: 6
+        transition:
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        features: 4
+        num_layers: 3
+        transition:
+          mode: down
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        features: 4
+        num_layers: 1
+  classifier:
+    features: 1
+enhancer:
+  implementation: dense
+  load_from: 'experiments/enhancer/dense.pth'
+  save_to: 'experiments/gan/dense_enh.pth'
+  features:
+    kernel_size: 9
+    padding: 4
+    stride: 1
+    features: 128
+    pool: false
+    dense: true
+  structure:
+    blocks:
+      - kernel_size: 7
+        padding: 3
+        stride: 1
+        features: 64
+        transition:
+          mode: same
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        features: 64
+        transition:
+          mode: same
+      - kernel_size: 1
+        padding: 0
+        stride: 1
+        features: 32
+  output_block:
+    kernel_size: 5
+    padding: 2
+    stride: 1
+    features: 3
+    tanh: false

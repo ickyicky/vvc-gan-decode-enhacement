@@ -11,6 +11,7 @@ class DataloaderConfig(BaseModel):
 
     batch_size: int = 8
     val_batch_size: int = 96
+    test_batch_size: int = 96
 
 
 class SubDatasetConfig(BaseModel):
@@ -126,8 +127,8 @@ class ModeTrainingConfig(BaseModel):
     num_samples: int = 6
 
     probe: int = 10
-    enhancer_min_loss: float = 0.25
-    discriminator_min_loss: float = 0.15
+    enhancer_min_loss: float = 0.45
+    discriminator_min_loss: float = 0.30
 
     enhancer_scheduler: bool = True
     discriminator_scheduler: bool = True
@@ -147,6 +148,8 @@ class TrainerConfig(BaseModel):
     gan: ModeTrainingConfig = ModeTrainingConfig()
     enhancer: ModeTrainingConfig = ModeTrainingConfig()
     discriminator: ModeTrainingConfig = ModeTrainingConfig()
+
+    separation_epochs: int = 10
 
     @property
     def current(self) -> ModeTrainingConfig:

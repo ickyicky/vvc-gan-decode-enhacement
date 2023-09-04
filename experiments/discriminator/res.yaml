@@ -3,7 +3,7 @@ trainer:
   discriminator:
     epochs: 50
     discriminator_lr: 0.001
-    discriminator_scheduler_milestones: [10, 20, 60]
+    discriminator_scheduler_milestones: [10, 20, 30, 40]
 discriminator:
   implementation: res
   save_to: 'experiments/discriminator/res.pth'
@@ -11,11 +11,16 @@ discriminator:
     kernel_size: 7
     padding: 3
     stride: 2
-    features: 64
+    features: 32
     pool: true
     res: false
   structure:
     blocks:
+      - kernel_size: 3
+        padding: 1
+        stride: 2
+        features: 32
+        num_layers: 1
       - kernel_size: 3
         padding: 1
         stride: 2
@@ -24,17 +29,12 @@ discriminator:
       - kernel_size: 3
         padding: 1
         stride: 2
-        features: 128
+        features: 64
         num_layers: 1
       - kernel_size: 3
         padding: 1
         stride: 2
-        features: 256
-        num_layers: 1
-      - kernel_size: 3
-        padding: 1
-        stride: 2
-        features: 512
+        features: 8
         num_layers: 1
   classifier:
     features: 1

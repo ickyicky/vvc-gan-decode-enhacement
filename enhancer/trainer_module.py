@@ -27,6 +27,8 @@ class TrainerModule(pl.LightningModule):
         self.mode = config.mode
         self.config = config.current
 
+        self.separation_epochs = config.separation_epochs
+
         self.enhancer_lr = self.config.enhancer_lr
         self.discriminator_lr = self.config.discriminator_lr
 
@@ -89,15 +91,11 @@ class TrainerModule(pl.LightningModule):
         self.log(f"{prefix}g_msssim_loss", msssim_loss, prog_bar=False)
         self.log(f"{prefix}g_mse_loss", mse_loss, prog_bar=False)
 
-        if self.mode == TrainingMode.GAN:
+        if self.mode == TrainingMode.GAN and self.current_epoch > self.separation_epochs:
             preds = self.discriminator(enhanced)
             gd_loss = self.adversarial_loss(preds, valid)
             g_loss = (
-                0.4 * gd_loss
-                + 0.15 * msssim_loss
-                + 0.2 * ssim_loss
-                + 0.15 * mse_loss
-                + 0.1 * l1_loss
+                0.1 * msssim_loss + 0.1 * ssim_loss + 0.35 * mse_loss + 0.35 * l1_loss + 0.1 * gd_loss
             )
             self.log(f"{prefix}g_d_loss", gd_loss, prog_bar=True)
             self.enhancer_losses.append(gd_loss.item())
