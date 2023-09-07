@@ -9,6 +9,7 @@ class ProcessPool:
     def __init__(self, jobs: List[str], count: Optional[int] = None):
         self.jobs = jobs
         self.done = []
+        self.failed = []
         self.active_processes = []
         self.count_limit = count or os.cpu_count()
 
@@ -45,9 +46,14 @@ class ProcessPool:
                 self.active_processes = [
                     p for p in self.active_processes if p not in done_processes
                 ]
+
                 for p in done_processes:
-                    self.done.append(p.args)
+                    if p.returncode != 0:
+                        self.failed.append(p.args)
+                    else:
+                        self.done.append(p.args)
                     self.spawn_next()
+
                 time.sleep(1)
                 if done_processes:
                     print(f"Total done after this iteration: {len(self.done)}")
@@ -55,7 +61,7 @@ class ProcessPool:
             except KeyboardInterrupt:
                 for p in self.active_processes:
                     os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-                    self.jobs.append(p.args)
+                    self.failed.append(p.args)
                 self.active_processes = []
                 break
 
@@ -82,4 +88,4 @@ if __name__ == "__main__":
         f.write("\n".join(pool.done))
 
     with open(args.UN_DONE, "w") as f:
-        f.write("\n".join(pool.jobs))
+        f.write("\n".join(pool.jobs + pool.failed))

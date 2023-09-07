@@ -1,35 +1,14 @@
 import os
 from tqdm import tqdm
 import cv2
-import re
 import numpy as np
 import sys
+from bin.utils.read_medatada import read_movie_metadata
 
 if len(sys.argv) == 2:
     ROOT = sys.argv[1]
 else:
     ROOT = "enhanced"
-
-
-INFO_HEIGHT_REGEX: str = re.compile(r"^\s*Height\s*:\s*(\d+)\s*$")
-INFO_WIDTH_REGEX: str = re.compile(r"^\s*Width\s*:\s*(\d+)\s*$")
-INFO_FRAME_RATE_REGEX: str = re.compile(r"^\s*Frame rate\s*:\s*(\d+)\.(\d+)\s*$")
-
-
-def read_movie_metadata(movie):
-    height, width, frame_rate = None, None, None
-    info_file = f"test_data/{movie}.y4m.info"
-
-    with open(info_file) as f:
-        for line in f.readlines():
-            h = re.match(INFO_HEIGHT_REGEX, line)
-            height = h.groups()[0] if h else height
-            w = re.match(INFO_WIDTH_REGEX, line)
-            width = w.groups()[0] if w else width
-            fr = re.match(INFO_FRAME_RATE_REGEX, line)
-            frame_rate = fr.groups()[0] if fr else frame_rate
-
-    return int(height), int(width), float(frame_rate)
 
 
 def mask(t: str):
@@ -56,7 +35,7 @@ def mask(t: str):
 
 
 for movie in tqdm(os.listdir(ROOT)):
-    height, width, frame_rate = read_movie_metadata(movie)
+    name, height, width, frame_rate = read_movie_metadata(movie)
     frames = [None] * 64
     for params in os.listdir(os.path.join(ROOT, movie)):
         if not os.path.isdir(os.path.join(ROOT, movie, params)):
@@ -69,9 +48,7 @@ for movie in tqdm(os.listdir(ROOT)):
             image = np.zeros((height + 136, width + 136, 3), dtype=np.float32)
 
             for part in os.listdir(os.path.join(ROOT, movie, params, frame)):
-                with open(
-                    os.path.join(ROOT, movie, params, frame, part), "rb"
-                ) as f:
+                with open(os.path.join(ROOT, movie, params, frame, part), "rb") as f:
                     buff = np.frombuffer(f.read(), dtype=np.float32)
                     buff = np.resize(buff, (3, 132, 132))
                     buff = buff.transpose(1, 2, 0)
