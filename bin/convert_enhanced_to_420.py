@@ -33,20 +33,26 @@ def read_movie_metadata(movie):
 TASKS = []
 
 
-for movie in glob.glob(f"{ROOT}/*.yuv"):
-    if "420" in movie:
-        continue
+for movie in os.listdir(ROOT):
+    movie = os.path.basename(movie)
+    movie = movie.split(".")[0]
+
+    if "_RA_" in movie:
+        movie = movie.split("_RA_")[0]
+    elif "_AI_" in movie:
+        movie = movie.split("_AI_")[0]
 
     height, width, frame_rate = read_movie_metadata(movie)
+
     for params in os.listdir(os.path.join(ROOT, movie)):
+        if "yuv" in params:
+            continue
+
         source = f"{ROOT}/{movie}/{params}.yuv"
         target = f"{ROOT}/{movie}/{params}_420.yuv"
-        if ROOT == "test_data":
-            cmd = f"ffmpeg -pix_fmt yuv420p10le -s {width}x{height} -i {source} -pix_fmt yuv420p {target}"
-        else:
-            cmd = f"ffmpeg -pix_fmt yuv444p -s {width}x{height} -i {source} -pix_fmt yuv420p {target}"
+        cmd = f"ffmpeg -pix_fmt yuv444p -s {width}x{height} -i {source} -pix_fmt yuv420p {target}"
         TASKS.append(cmd)
 
 
-with open(f"{ROOT}_convert_tasks", "w") as f:
+with open(f"{ROOT}_convert_tasks".replace("/", "_"), "w") as f:
     f.write("\n".join(TASKS))
