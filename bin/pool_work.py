@@ -71,8 +71,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("TO_DO", help="file with commands to run")
-    parser.add_argument("DONE", help="file to which write done jobs")
-    parser.add_argument("UN_DONE", help="file to which write not done jobs")
+    parser.add_argument(
+        "DONE", help="file to which write done jobs", default="done", nargs="?"
+    )
+    parser.add_argument(
+        "UN_DONE", help="file to which write not done jobs", default="undone", nargs="?"
+    )
     parser.add_argument(
         "--cpu-count", "-x", help="cpu count", default=os.cpu_count(), type=int
     )
