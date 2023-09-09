@@ -9,7 +9,14 @@ INFO_FRAME_RATE_REGEX = re.compile(r"^\s*Frame rate\s*:\s*(\d+)\.(\d+)\s*$")
 
 
 def normalize_name(movie: str) -> str:
-    name = os.path.basename(movie)
+    movie = os.path.normpath(movie)
+    parts = movie.split(os.sep)
+
+    if parts[0] == "enhanced":
+        name = parts[-2]  # last part is params used for encoding
+    else:
+        name = parts[-1]
+
     name = name.split(".")[0]
 
     if "_RA_" in name:

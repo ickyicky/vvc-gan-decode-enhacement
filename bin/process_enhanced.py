@@ -3,7 +3,7 @@ from tqdm import tqdm
 import cv2
 import numpy as np
 import sys
-from bin.utils.read_medatada import read_movie_metadata
+from utils.read_medatada import read_movie_metadata
 
 if len(sys.argv) == 2:
     ROOT = sys.argv[1]
