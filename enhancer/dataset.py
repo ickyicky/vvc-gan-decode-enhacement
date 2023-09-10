@@ -1,12 +1,11 @@
 import torch
 import os
 import numpy as np
-from typing import List, Tuple, Any
+from typing import Tuple, Any
 from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 from glob import glob
 from pathlib import Path
-import re
 from .config import SubDatasetConfig
 
 
@@ -224,12 +223,9 @@ class VVCDataset(torch.utils.data.Dataset):
 
 
 class FrameDataset(torch.utils.data.Dataset):
-    FRAME_GLOB = "{folder}/*/*/*.png"
+    FRAME_GLOB = "{folder}/*__*__*/*/*.png "
     FRAME_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}.png"
     ORIG_FRAME_NAME = "{file}/{frame}.png"
-
-    INFO_HEIGHT_REGEX = re.compile(r"^\s*Height\s*:\s*(\d+)\s*$")
-    INFO_WIDTH_REGEX = re.compile(r"^\s*Width\s*:\s*(\d+)\s*$")
 
     def __init__(
         self,
@@ -322,3 +318,8 @@ class FrameDataset(torch.utils.data.Dataset):
             self.metadata_transform(meta),
             metadata_to_tuple(metadata),
         )
+
+
+if __name__ == "__main__":
+    dataset = FrameDataset(SubDatasetConfig(), lambda x: x, lambda x: x)
+    print(dataset[0])
