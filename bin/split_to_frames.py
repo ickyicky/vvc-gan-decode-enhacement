@@ -48,7 +48,7 @@ class Splitter:
     ORIGINAL_FORMAT: str = "{file}.yuv"
     FILE_FORMAT: str = "yuv"
 
-    FRAME_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}.png"
+    FRAME_NAME = "{file}__{height}__{width}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}.png"
     ORIG_FRAME_NAME = "{file}/{frame}.png"
 
     def __init__(

@@ -6,6 +6,7 @@ from dataclasses import dataclass, asdict
 from pydantic import validate_arguments
 from glob import glob
 from pathlib import Path
+import re
 from .config import SubDatasetConfig
 
 
@@ -20,6 +21,8 @@ class Metadata:
     db: bool
     frame: int
     is_intra: bool
+    height: int
+    width: int
 
 
 @validate_arguments
@@ -43,6 +46,23 @@ def chunk_to_tuple(chunk: Chunk) -> Tuple:
         chunk.metadata.db,
         chunk.metadata.frame,
         chunk.metadata.is_intra,
+        chunk.metadata.height,
+        chunk.metadata.width,
+    )
+
+
+def metadata_to_tuple(metadata: Metadata) -> Tuple:
+    return (
+        metadata.file,
+        metadata.profile,
+        metadata.qp,
+        metadata.alf,
+        metadata.sao,
+        metadata.db,
+        metadata.frame,
+        metadata.is_intra,
+        metadata.height,
+        metadata.width,
     )
 
 
@@ -59,7 +79,24 @@ def chunk_from_tuple(data: Tuple) -> Chunk:
             db=bool(data[8]),
             frame=data[9],
             is_intra=bool(data[10]),
+            height=data[11],
+            width=data[12],
         ),
+    )
+
+
+def metadata_from_tuple(data: Tuple) -> Metadata:
+    return Metadata(
+        file=data[3],
+        profile=data[4],
+        qp=data[5],
+        alf=bool(data[6]),
+        sao=bool(data[7]),
+        db=bool(data[8]),
+        frame=data[9],
+        is_intra=bool(data[10]),
+        height=data[11],
+        width=data[12],
     )
 
 
@@ -94,7 +131,7 @@ class VVCDataset(torch.utils.data.Dataset):
 
         self.chunk_files = glob(self.CHUNK_GLOB.format(folder=self.chunk_folder))
 
-    def get_chunk(self, fname: str) -> List[Chunk]:
+    def get_chunk(self, fname: str) -> Chunk:
         """load_chunks.
         Loads list of available chunks
 
@@ -114,6 +151,8 @@ class VVCDataset(torch.utils.data.Dataset):
             db=bool(int(db[2:])),
             frame=int(frame),
             is_intra=is_intra == "True",
+            height=0,
+            width=0,
         )
         chunk = Chunk(
             position=(int(pos0), int(pos1)),
@@ -173,7 +212,7 @@ class VVCDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.chunk_files)
 
-    def __getitem__(self, idx: int) -> Tuple[Any, Any, Any]:
+    def __getitem__(self, idx: int) -> Tuple[Any, Any, Any, Any]:
         chunk_obj = self.get_chunk(self.chunk_files[idx])
         chunk, orig_chunk, metadata = self.load_chunk(chunk_obj)
         return (
@@ -181,4 +220,105 @@ class VVCDataset(torch.utils.data.Dataset):
             self.chunk_transform(orig_chunk),
             self.metadata_transform(metadata),
             chunk_to_tuple(chunk_obj),
+        )
+
+
+class FrameDataset(torch.utils.data.Dataset):
+    FRAME_GLOB = "{folder}/*/*/*.png"
+    FRAME_NAME = "{file}/{profile}_QP{qp:d}_ALF{alf:d}_DB{db:d}_SAO{sao:d}/{frame}_{is_intra}.png"
+    ORIG_FRAME_NAME = "{file}/{frame}.png"
+
+    INFO_HEIGHT_REGEX = re.compile(r"^\s*Height\s*:\s*(\d+)\s*$")
+    INFO_WIDTH_REGEX = re.compile(r"^\s*Width\s*:\s*(\d+)\s*$")
+
+    def __init__(
+        self,
+        settings: SubDatasetConfig,
+        chunk_transform: Any,
+        metadata_transform: Any,
+    ) -> None:
+        super().__init__()
+
+        self.chunk_folder = settings.chunk_folder
+        self.orig_chunk_folder = settings.orig_chunk_folder
+
+        self.chunk_height = settings.chunk_height
+        self.chunk_width = settings.chunk_width
+
+        self.chunk_transform = chunk_transform
+        self.metadata_transform = metadata_transform
+
+        self.frame_files = glob(self.FRAME_GLOB.format(folder=self.chunk_folder))
+
+    def get_metadata(self, fname: str) -> Metadata:
+        """load_chunks.
+        Loads list of available chunks
+
+        :rtype: List[Chunk]
+        """
+        fname, profiles, frame = fname.split("/")[-3:]
+        fname, heigh, width = fname.split("__")
+        profile, qp, alf, db, sao = profiles.split("_")
+        frame, is_intra = frame.split("_")
+
+        metadata = Metadata(
+            file=fname,
+            profile=profile,
+            qp=int(qp[2:]),
+            alf=bool(int(alf[3:])),
+            sao=bool(int(sao[3:])),
+            db=bool(int(db[2:])),
+            frame=int(frame),
+            is_intra=is_intra == "True",
+            height=int(heigh),
+            width=int(width),
+        )
+        return metadata
+
+    def _metadata_to_np(self, metadata: Metadata) -> Any:
+        """
+        Numpy representation of metadata
+        """
+        return np.array(
+            (
+                0 if metadata.profile == "RA" else 1,
+                metadata.qp / 64,
+                metadata.alf,
+                metadata.sao,
+                metadata.db,
+                metadata.is_intra,
+            )
+        )
+
+    def load_frame(self, metadata: Metadata) -> Tuple[Any, Any, Any]:
+        frame_path = self.FRAME_NAME.format_map(
+            dict(**asdict(metadata))
+        )
+        frame_path = os.path.join(self.chunk_folder, frame_path)
+        orig_frame_path = self.ORIG_FRAME_NAME.format_map(
+            dict(**asdict(metadata))
+        )
+        orig_frame_path = os.path.join(self.orig_chunk_folder, orig_frame_path)
+
+        with open(frame_path, "rb") as f:
+            _frame = np.frombuffer(f.read(), dtype=np.uint8)
+            _frame = np.resize(_frame, (metadata.height, metadata.width, 3))
+
+        with open(orig_frame_path, "rb") as f:
+            orig_frame = np.frombuffer(f.read(), dtype=np.uint8)
+            orig_frame = np.resize(orig_frame, (metadata.height, metadata.width, 3))
+
+        return (_frame, orig_frame, self._metadata_to_np(metadata))
+
+    def __len__(self) -> int:
+        return len(self.frame_files)
+
+    def __getitem__(self, idx: int) -> Tuple[Any, Any, Any, Any]:
+        metadata = self.get_metadata(self.frame_files[idx])
+        frame, orig_frame, meta = self.load_frame(metadata)
+        return (
+            self.chunk_transform(frame),
+            self.chunk_transform(orig_frame),
+            self.metadata_transform(meta),
+            metadata_to_tuple(metadata),
         )
