@@ -5,7 +5,7 @@ from torchvision import transforms
 import pytorch_lightning as pl
 from .config import DataloaderConfig, DatasetConfig
 
-from .dataset import VVCDataset
+from .dataset import VVCDataset, FrameDataset
 
 
 class LoaderWrapper:
@@ -60,6 +60,7 @@ class VVCDataModule(pl.LightningDataModule):
         self,
         dataset_config: DatasetConfig,
         dataloader_config: DataloaderConfig,
+        test_full_frames: bool = False,
     ):
         """__init__.
 
@@ -81,6 +82,7 @@ class VVCDataModule(pl.LightningDataModule):
         self.dataset_val = None
         self.dataset_test = None
         self.dataset_train = None
+        self.test_full_frames = test_full_frames
 
     def setup(self, stage=None):
         """setup.
@@ -109,11 +111,18 @@ class VVCDataModule(pl.LightningDataModule):
             )
 
         if stage in ("test", "predict"):
-            self.dataset_test = VVCDataset(
-                settings=self.dataset_config.test,
-                chunk_transform=self.chunk_transform(),
-                metadata_transform=self.metadata_transform(),
-            )
+            if self.test_full_frames:
+                self.dataset_test = FrameDataset(
+                    settings=self.dataset_config.test,
+                    chunk_transform=self.chunk_transform(),
+                    metadata_transform=self.metadata_transform(),
+                )
+            else:
+                self.dataset_test = VVCDataset(
+                    settings=self.dataset_config.test,
+                    chunk_transform=self.chunk_transform(),
+                    metadata_transform=self.metadata_transform(),
+                )
 
     def train_dataloader(self):
         """train_dataloader."""
@@ -129,19 +138,19 @@ class VVCDataModule(pl.LightningDataModule):
             self.config.n_step,
         )
 
-    def test_dataloader(self):
+    def test_dataloader(self, shuffle=False):
         """test_dataloader."""
         data_loader = DataLoader(
             self.dataset_test,
-            batch_size=self.config.test_batch_size,
-            shuffle=True,
+            batch_size=self.config.test_batch_size if not self.test_full_frames else 1,
+            shuffle=shuffle,
             pin_memory=True,
             num_workers=os.cpu_count(),
         )
         return data_loader
 
     def predict_dataloader(self):
-        return self.test_dataloader()
+        return self.test_dataloader(True)
 
     def val_dataloader(self):
         """val_dataloader."""

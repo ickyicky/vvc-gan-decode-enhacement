@@ -11,7 +11,7 @@ class DataloaderConfig(BaseModel):
 
     batch_size: int = 8
     val_batch_size: int = 96
-    test_batch_size: int = 96
+    test_batch_size: int = 64  # full video
 
 
 class SubDatasetConfig(BaseModel):
@@ -168,6 +168,7 @@ class Config(BaseModel):
     dataset: DatasetConfig = DatasetConfig()
     enhancer: EnhancerConfig = EnhancerConfig()
     discriminator: DiscriminatorConfig = DiscriminatorConfig()
+    test_full_frames: bool = False
 
     trainer: TrainerConfig = TrainerConfig()
 

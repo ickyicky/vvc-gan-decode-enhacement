@@ -36,6 +36,7 @@ if __name__ == "__main__":
     data_module = VVCDataModule(
         dataset_config=config.dataset,
         dataloader_config=config.dataloader,
+        test_full_frames=config.test_full_frames,
     )
 
     enhancer = Enhancer(
@@ -62,6 +63,7 @@ if __name__ == "__main__":
         config.trainer,
         enhancer,
         discriminator,
+        test_full_frames=config.test_full_frames,
     )
 
     wandb_logger = WandbLogger(

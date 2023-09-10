@@ -29,7 +29,7 @@ discriminator:
       - kernel_size: 3
         padding: 1
         stride: 2
-        features: 64
+        features: 128
         num_layers: 1
       - kernel_size: 3
         padding: 1

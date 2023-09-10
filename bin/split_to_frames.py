@@ -95,6 +95,9 @@ class Splitter:
             if file in done:
                 continue
 
+            if "420" in file:
+                continue
+
             metadata = self.load_metadata_for(file)
             intra_frames = self.load_intra_frames(metadata)
 

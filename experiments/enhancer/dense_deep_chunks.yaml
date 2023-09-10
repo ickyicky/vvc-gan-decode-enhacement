@@ -1,13 +1,12 @@
-test_full_frames: true
 trainer:
   mode: enhancer
   enhancer:
     epochs: 1000
     enhancer_scheduler_milestones: [200, 600]
-    saved_chunk_folder: enhanced/dense
+    saved_chunk_folder: enhanced/dense_deep_chunks
 enhancer:
   implementation: dense
-  save_to: 'experiments/enhancer/dense.pth'
+  save_to: 'experiments/enhancer/dense_deep.pth'
   features:
     kernel_size: 9
     padding: 4
@@ -20,19 +19,22 @@ enhancer:
       - kernel_size: 7
         padding: 3
         stride: 1
-        features: 64
+        features: 16
+        num_layers: 4
         transition:
           mode: same
       - kernel_size: 3
         padding: 1
         stride: 1
-        features: 64
+        features: 16
+        num_layers: 4
         transition:
           mode: same
       - kernel_size: 1
         padding: 0
         stride: 1
-        features: 32
+        features: 16
+        num_layers: 2
   output_block:
     kernel_size: 5
     padding: 2

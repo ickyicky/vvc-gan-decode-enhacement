@@ -26,8 +26,11 @@ class MetadataEncoder(nn.Module):
 
         self.size = size
 
-    def forward(self, x: Tensor) -> Tensor:
-        x = torch.nn.functional.interpolate(x, size=self.size)
+    def forward(self, x: Tensor, size: None | int | tuple[int, int] = None) -> Tensor:
+        if size is None:
+            size = self.size
+
+        x = torch.nn.functional.interpolate(x, size=size)
         return x
 
 
@@ -63,7 +66,8 @@ class Enhancer(nn.Module):
         )
 
     def forward(self, input_: Tensor, metadata: Tensor) -> Tensor:
-        encoded_metadata = self.metadata_encoder(metadata)
+        shape = input_.shape[2:]
+        encoded_metadata = self.metadata_encoder(metadata, shape)
         data = torch.cat((input_, encoded_metadata), 1)
         result = self.model(data)
 
@@ -86,3 +90,4 @@ if __name__ == "__main__":
     print(result.shape)
 
     summary(g, [(3, 132, 132), (6, 1, 1)], device="cpu", depth=10)
+    summary(g, [(3, 1920, 1080), (6, 1, 1)], device="cpu", depth=10)

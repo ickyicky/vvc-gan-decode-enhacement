@@ -20,28 +20,28 @@ discriminator:
       - kernel_size: 3
         padding: 1
         stride: 1
-        features: 4
+        features: 8
         num_layers: 3
         transition:
           mode: down
       - kernel_size: 3
         padding: 1
         stride: 1
-        features: 4
+        features: 8
         num_layers: 6
         transition:
           mode: down
       - kernel_size: 3
         padding: 1
         stride: 1
-        features: 4
-        num_layers: 3
+        features: 8
+        num_layers: 12
         transition:
           mode: down
       - kernel_size: 3
         padding: 1
         stride: 1
-        features: 4
+        features: 8
         num_layers: 1
   classifier:
     features: 1

@@ -1,3 +1,4 @@
+test_full_frames: true
 trainer:
   mode: enhancer
   enhancer:

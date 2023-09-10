@@ -8,7 +8,7 @@ from torchmetrics.functional import structural_similarity_index_measure as ssim
 from torchmetrics.functional.classification import accuracy
 from pytorch_msssim import SSIM, MS_SSIM
 from .config import TrainerConfig, TrainingMode
-from .dataset import VVCDataset
+from .dataset import VVCDataset, FrameDataset
 
 
 class TrainerModule(pl.LightningModule):
@@ -17,6 +17,7 @@ class TrainerModule(pl.LightningModule):
         config: TrainerConfig,
         enhancer,
         discriminator,
+        test_full_frames: bool = False,
     ):
         super().__init__()
         self.automatic_optimization = False
@@ -44,6 +45,8 @@ class TrainerModule(pl.LightningModule):
         self.num_samples = self.config.num_samples
         self.ssim = SSIM(data_range=1.0, win_size=9)
         self.msssim = MS_SSIM(data_range=1.0, win_size=9)
+
+        self.test_full_frames = test_full_frames
 
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
@@ -402,9 +405,14 @@ class TrainerModule(pl.LightningModule):
 
         for i, chunk_data in enumerate(enhanced):
             chunk = [c[i].cpu() if hasattr(c[i], "cpu") else c[i] for c in chunk_objs]
-            VVCDataset.save_chunk(
-                chunk, chunk_data.cpu().numpy(), self.config.saved_chunk_folder
-            )
+            if self.test_full_frames:
+                FrameDataset.save_frame(
+                    chunk, chunk_data.cpu().numpy(), self.config.saved_chunk_folder
+                )
+            else:
+                VVCDataset.save_chunk(
+                    chunk, chunk_data.cpu().numpy(), self.config.saved_chunk_folder
+                )
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(

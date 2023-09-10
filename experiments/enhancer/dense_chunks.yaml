@@ -1,10 +1,9 @@
-test_full_frames: true
 trainer:
   mode: enhancer
   enhancer:
     epochs: 1000
     enhancer_scheduler_milestones: [200, 600]
-    saved_chunk_folder: enhanced/dense
+    saved_chunk_folder: enhanced/dense_chunks
 enhancer:
   implementation: dense
   save_to: 'experiments/enhancer/dense.pth'
