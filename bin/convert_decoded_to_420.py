@@ -20,9 +20,9 @@ for movie in os.listdir(ROOT):
 
     source = f"{ROOT}/{movie}"
     target = f"{ROOT}/{name}_420.yuv"
-    cmd = f"ffmpeg -pix_fmt yuv420p10le -s {width}x{height} -i {source} -pix_fmt yuv420p {target}"
+    cmd = f"ffmpeg -y -pix_fmt yuv420p10le -s {width}x{height} -i {source} -pix_fmt yuv420p {target}"
     TASKS.append(cmd)
 
 
-with open(f"{ROOT}_convert_tasks".replace("/", "_"), "w") as f:
+with open(f"tasks_convert_{ROOT}".replace("/", "_"), "w") as f:
     f.write("\n".join(TASKS))

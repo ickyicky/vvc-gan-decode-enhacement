@@ -10,7 +10,7 @@ class DataloaderConfig(BaseModel):
     test_n_step: int = 5
 
     batch_size: int = 8
-    val_batch_size: int = 96
+    val_batch_size: int = 64
     test_batch_size: int = 64  # full video
 
 
@@ -150,6 +150,8 @@ class TrainerConfig(BaseModel):
     discriminator: ModeTrainingConfig = ModeTrainingConfig()
 
     separation_epochs: int = 10
+    # channels_grad_scales: tuple[float, float, float] = (1, 0.25, 0.25)
+    channels_grad_scales: tuple[float, float, float] = (2 / 3, 1 / 6, 1 / 6)
 
     @property
     def current(self) -> ModeTrainingConfig:

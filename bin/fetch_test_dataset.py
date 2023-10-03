@@ -17,6 +17,9 @@ BASE_URL = "https://media.xiph.org/video/derf/y4m/"
 SELECTED_VIDEOS = [
     "Johnny_1280x720_60.y4m",
     "tractor_1080p25.y4m",
+    "bridge_far_cif.y4m",
+    "stefan_cif.y4m",
+    "students_qcif.y4m",
 ]
 
 

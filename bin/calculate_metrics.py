@@ -56,5 +56,5 @@ else:
         produce_tasks(movie)
 
 
-with open(f"{ROOT.replace(os.sep, '_')}_calculate_metrics", "w") as f:
+with open(f"tasks_metrics_{ROOT.replace(os.sep, '_')}", "w") as f:
     f.write("\n".join(TASKS))

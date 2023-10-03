@@ -24,6 +24,9 @@ def normalize_name(movie: str) -> str:
     elif "_AI_" in name:
         name = name.split("_AI_")[0]
 
+    if "__" in name:
+        name = name.split("__")[0]
+
     return name
 
 

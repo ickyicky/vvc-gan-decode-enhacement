@@ -313,7 +313,6 @@ class FrameDataset(torch.utils.data.Dataset):
     def save_frame(cls, meta: Tuple, frame_data: Any, saved_frame_folder: str) -> Any:
         metadata = metadata_from_tuple(meta)
         mdict = dict(**asdict(metadata))
-        mdict["file"] = metadata.file.split("__")[0]
 
         frame_path = cls.FRAME_NAME.format_map(mdict)
 

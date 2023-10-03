@@ -85,8 +85,11 @@ class Splitter:
         """
         files = sorted(os.listdir(self.encoded_path))
 
-        with open(self.done_cache) as f:
-            done = f.read().splitlines()
+        try:
+            with open(self.done_cache) as f:
+                done = f.read().splitlines()
+        except:
+            done = []
 
         for file in tqdm(files):
             if not file.endswith(self.FILE_FORMAT):
@@ -143,6 +146,7 @@ class Splitter:
 
         assert isinstance(height, str)
         assert isinstance(width, str)
+        print(match_group["alf"])
 
         return Metadata(
             file=match_group["name"],
@@ -151,9 +155,9 @@ class Splitter:
             frames=64,
             profile=match_group["profile"],
             qp=int(match_group["qp"]),
-            alf=bool(match_group["alf"]),
-            db=bool(match_group["db"]),
-            sao=bool(match_group["sao"]),
+            alf=bool(int(match_group["alf"])),
+            db=bool(int(match_group["db"])),
+            sao=bool(int(match_group["sao"])),
         )
 
     def save_frames(self, frames: list[Frame]) -> None:

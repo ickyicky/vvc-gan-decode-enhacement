@@ -15,11 +15,19 @@ import torch
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
-        "mode",
-        action="store",
-        type=str,
-        help="mode of operation",
-        choices=["train", "test", "predict"],
+        "--train",
+        action="store_true",
+        help="train",
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="train",
+    )
+    parser.add_argument(
+        "--predict",
+        action="store_true",
+        help="train",
     )
     parser.add_argument(
         "--config",
@@ -44,7 +52,7 @@ if __name__ == "__main__":
     )
 
     if config.enhancer.load_from:
-        enhancer.load_state_dict(torch.load(config.enhancer.load_from))
+        enhancer.load_state_dict(torch.load(config.enhancer.load_from), strict=True)
         print("loaded enhancer")
     else:
         enhancer.apply(weights_init)
@@ -54,7 +62,9 @@ if __name__ == "__main__":
     )
 
     if config.discriminator.load_from:
-        discriminator.load_state_dict(torch.load(config.discriminator.load_from))
+        discriminator.load_state_dict(
+            torch.load(config.discriminator.load_from), strict=True
+        )
         print("loaded discriminator")
     else:
         discriminator.apply(weights_init)
@@ -82,17 +92,17 @@ if __name__ == "__main__":
         logger=wandb_logger,
     )
 
-    if args.mode == "train":
+    if args.train:
         trainer.fit(module, data_module)
-    elif args.mode == "test":
-        trainer.test(module, data_module)
-    elif args.mode == "predict":
-        trainer.predict(module, data_module)
-    else:
-        raise ValueError("mode not recognized")
 
     if config.enhancer.save_to:
         torch.save(enhancer.state_dict(), config.enhancer.save_to)
 
     if config.discriminator.save_to:
         torch.save(discriminator.state_dict(), config.discriminator.save_to)
+
+    if args.test:
+        trainer.test(module, data_module)
+
+    if args.predict:
+        trainer.predict(module, data_module)

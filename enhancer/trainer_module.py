@@ -6,7 +6,7 @@ import numpy as np
 from torchmetrics.functional import peak_signal_noise_ratio as psnr
 from torchmetrics.functional import structural_similarity_index_measure as ssim
 from torchmetrics.functional.classification import accuracy
-from pytorch_msssim import SSIM, MS_SSIM
+from .ssim import SSIM, MS_SSIM
 from .config import TrainerConfig, TrainingMode
 from .dataset import VVCDataset, FrameDataset
 
@@ -43,10 +43,11 @@ class TrainerModule(pl.LightningModule):
         self.probe = self.config.probe
 
         self.num_samples = self.config.num_samples
-        self.ssim = SSIM(data_range=1.0, win_size=9)
-        self.msssim = MS_SSIM(data_range=1.0, win_size=9)
+        self.ssim = SSIM(data_range=1.0, win_size=9, per_channel=True)
+        self.msssim = MS_SSIM(data_range=1.0, win_size=9, per_channel=True)
 
         self.test_full_frames = test_full_frames
+        self.channels_grad_scales = config.channels_grad_scales
 
     def forward(self, chunks, metadata):
         return self.enhancer(chunks, metadata)
@@ -83,16 +84,56 @@ class TrainerModule(pl.LightningModule):
         valid = torch.ones(chunks.size(0), 1)
         valid = valid.type_as(chunks)
 
-        # adversarial loss is binary cross-entropy
-        ssim_loss = 1 - self.ssim(orig_chunks, enhanced)
-        msssim_loss = 1 - self.msssim(orig_chunks, enhanced)
-        mse_loss = F.mse_loss(enhanced, orig_chunks)
-        l1_loss = torch.nn.functional.l1_loss(enhanced, orig_chunks)
+        # split channels
+        def split(x):
+            return x[:, [0]], x[:, [1]], x[:, [2]]
 
-        self.log(f"{prefix}g_l1_loss", l1_loss, prog_bar=False)
+        eY, eU, eV = split(enhanced)
+        oY, oU, oV = split(orig_chunks)
+
+        def to_tensor(x):
+            return torch.Tensor(x).to(enhanced.device)
+
+        channels_grad_scales = to_tensor(self.channels_grad_scales)
+
+        # those are by channel
+        ssim_l = 1 - self.ssim(orig_chunks, enhanced)
+        ssimY, ssimU, ssimV = ssim_l
+        ssim_loss = (channels_grad_scales * ssim_l).sum()
+
+        self.log(f"{prefix}g_ssimY_loss", ssimY, prog_bar=False)
+        self.log(f"{prefix}g_ssimU_loss", ssimU, prog_bar=False)
+        self.log(f"{prefix}g_ssimV_loss", ssimV, prog_bar=False)
         self.log(f"{prefix}g_ssim_loss", ssim_loss, prog_bar=False)
+        self.log(f"{prefix}g_ssim", ssim_l.mean(), prog_bar=False)
+
+        msssim_l = 1 - self.msssim(orig_chunks, enhanced)
+        msssimY, msssimU, msssimV = msssim_l
+        msssim_loss = (channels_grad_scales * msssim_l).sum()
+
+        self.log(f"{prefix}g_msssimY_loss", msssimY, prog_bar=False)
+        self.log(f"{prefix}g_msssimU_loss", msssimU, prog_bar=False)
+        self.log(f"{prefix}g_msssimV_loss", msssimV, prog_bar=False)
         self.log(f"{prefix}g_msssim_loss", msssim_loss, prog_bar=False)
+        self.log(f"{prefix}g_msssim", msssim_l.mean(), prog_bar=False)
+
+        mseY = F.mse_loss(oY, eY)
+        mseU = F.mse_loss(oU, eU)
+        mseV = F.mse_loss(oV, eV)
+        mse_loss = (channels_grad_scales * to_tensor([mseY, mseU, mseV])).sum()
         self.log(f"{prefix}g_mse_loss", mse_loss, prog_bar=False)
+        self.log(f"{prefix}g_mseY_loss", mseY, prog_bar=False)
+        self.log(f"{prefix}g_mseU_loss", mseU, prog_bar=False)
+        self.log(f"{prefix}g_mseV_loss", mseV, prog_bar=False)
+
+        l1Y = F.l1_loss(oY, eY)
+        l1U = F.l1_loss(oU, eU)
+        l1V = F.l1_loss(oV, eV)
+        l1_loss = (channels_grad_scales * to_tensor([l1Y, l1U, l1V])).sum()
+        self.log(f"{prefix}g_l1_loss", l1_loss, prog_bar=False)
+        self.log(f"{prefix}g_l1Y_loss", l1Y, prog_bar=False)
+        self.log(f"{prefix}g_l1U_loss", l1U, prog_bar=False)
+        self.log(f"{prefix}g_l1V_loss", l1V, prog_bar=False)
 
         if (
             self.mode == TrainingMode.GAN
@@ -119,6 +160,8 @@ class TrainerModule(pl.LightningModule):
         self.log(f"{prefix}g_loss", g_loss, prog_bar=True)
 
         if stage != "train":
+            cY, cU, cV = split(chunks)
+
             enhanced_psnr = psnr(
                 enhanced,
                 orig_chunks,
@@ -127,6 +170,15 @@ class TrainerModule(pl.LightningModule):
                 chunks,
                 orig_chunks,
             )
+
+            epsnrY = psnr(eY, oY)
+            epsnrU = psnr(eU, oU)
+            epsnrV = psnr(eV, oV)
+
+            cpsnrY = psnr(cY, oY)
+            cpsnrU = psnr(cU, oU)
+            cpsnrV = psnr(cV, oV)
+
             enhanced_ssim = ssim(
                 enhanced,
                 orig_chunks,
@@ -138,7 +190,13 @@ class TrainerModule(pl.LightningModule):
             self.log_dict(
                 {
                     f"{prefix}psnr": enhanced_psnr,
+                    f"{prefix}psnrY": epsnrY,
+                    f"{prefix}psnrU": epsnrU,
+                    f"{prefix}psnrV": epsnrV,
                     f"{prefix}ref_psnr": orig_psnr,
+                    f"{prefix}ref_psnrY": cpsnrY,
+                    f"{prefix}ref_psnrU": cpsnrU,
+                    f"{prefix}ref_psnrV": cpsnrV,
                     f"{prefix}ssim": enhanced_ssim,
                     f"{prefix}ref_ssim": orig_ssim,
                 },
@@ -321,81 +379,36 @@ class TrainerModule(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         chunks, orig_chunks, metadata, _ = batch
+        preds = None
 
+        # train ENHANCE!
         # ENHANCE!
-        enhanced = self(chunks, metadata)
+        if self.mode != TrainingMode.DISCRIMINATOR:
+            # with gradient
+            enhanced, preds, g_loss = self.g_step(chunks, orig_chunks, metadata, "test")
+            fake_chunks = enhanced.detach()
+        else:
+            fake_chunks = chunks
+            enhanced = None
 
-        # ground truth result (ie: all fake)
-        # put on GPU because we created this tensor inside training_loop
-        valid = torch.ones(chunks.size(0), 1)
-        valid = valid.type_as(chunks)
+        # train discriminator
+        if self.mode != TrainingMode.ENHANCER:
+            fake_preds, real_preds, d_loss = self.d_step(
+                fake_chunks, orig_chunks, "test"
+            )
+        else:
+            real_preds = None
+            fake_preds = preds
 
-        # adversarial loss is binary cross-entropy
-        preds = self.discriminator(enhanced)
-
-        g_loss = self.adversarial_loss(preds, valid)
-
-        if batch_idx % 20 == 0:
-            log = {"enhanced": [], "uncompressed": [], "decompressed": []}
-            for i in range(self.num_samples):
-                enh = enhanced[i].cpu()
-                orig = orig_chunks[i].cpu()
-                dec = chunks[i].cpu()
-
-                log["enhanced"].append(
-                    wandb.Image(enh, caption=f"Pred: {preds[i].item()}")
-                )
-                log["uncompressed"].append(
-                    wandb.Image(orig, caption=f"uncompressed image {i}")
-                )
-                log["decompressed"].append(
-                    wandb.Image(dec, caption=f"decompressed image {i}")
-                )
-            self.logger.experiment.log({f"test_{k}": v for k, v in log.items()})
-
-        real_loss = self.adversarial_loss(self.discriminator(orig_chunks), valid)
-
-        # how well can it label as fake?
-        fake = torch.zeros(orig_chunks.size(0), 1)
-        fake = fake.type_as(orig_chunks)
-
-        fake_loss = self.adversarial_loss(preds, fake)
-
-        # discriminator loss is the average of these
-        d_loss = (real_loss + fake_loss) / 2
-
-        transformed_enhacned = self.psnr_transform(enhanced)
-        transformed_orig = self.psnr_transform(orig_chunks)
-        transformed_chunks = self.psnr_transform(chunks)
-
-        enhanced_psnr = psnr(
-            transformed_enhacned,
-            transformed_orig,
-        )
-        orig_psnr = psnr(
-            transformed_chunks,
-            transformed_orig,
-        )
-        enhanced_ssim = ssim(
-            transformed_enhacned,
-            transformed_orig,
-        )
-        orig_ssim = ssim(
-            transformed_chunks,
-            transformed_orig,
-        )
-
-        # log everything
-        self.log_dict(
-            {
-                "test_g_loss": g_loss,
-                "test_d_loss": d_loss,
-                "test_psnr": enhanced_psnr,
-                "test_ref_psnr": orig_psnr,
-                "test_ssim": enhanced_ssim,
-                "test_ref_ssim": orig_ssim,
-            },
-        )
+        if batch_idx % 10 == 0:
+            self.log_images(
+                enhanced,
+                chunks,
+                orig_chunks,
+                fake_preds,
+                real_preds,
+                "test",
+            )
 
     def predict_step(self, batch, batch_idx):
         chunks, _, metadata, chunk_objs = batch

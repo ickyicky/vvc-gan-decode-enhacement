@@ -90,4 +90,4 @@ if __name__ == "__main__":
     print(result.shape)
 
     summary(g, [(3, 132, 132), (6, 1, 1)], device="cpu", depth=10)
-    summary(g, [(3, 1920, 1080), (6, 1, 1)], device="cpu", depth=10)
+    # summary(g, [(3, 1920, 1080), (6, 1, 1)], device="cpu", depth=10)
