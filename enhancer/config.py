@@ -75,7 +75,7 @@ class NetworkConfig(BaseModel):
     implementation: NetworkImplementation = NetworkImplementation.CONV
     reflect_padding: bool = True
     activation: str = "prelu"
-    bn_size: int = 2
+    bn_size: float = 2
 
     structure: StructureConfig = StructureConfig()
     features: Optional[FeaturesConfig] = None
@@ -127,8 +127,8 @@ class ModeTrainingConfig(BaseModel):
     num_samples: int = 6
 
     probe: int = 10
-    enhancer_min_loss: float = 0.45
-    discriminator_min_loss: float = 0.30
+    enhancer_min_loss: float = 0.35
+    discriminator_min_loss: float = 0.20
 
     enhancer_scheduler: bool = True
     discriminator_scheduler: bool = True
@@ -150,8 +150,9 @@ class TrainerConfig(BaseModel):
     discriminator: ModeTrainingConfig = ModeTrainingConfig()
 
     separation_epochs: int = 10
-    # channels_grad_scales: tuple[float, float, float] = (1, 0.25, 0.25)
+    # channels_grad_scales: tuple[float, float, float] = (1 / 3, 1 / 3, 1 / 3)
     channels_grad_scales: tuple[float, float, float] = (2 / 3, 1 / 6, 1 / 6)
+    # channels_grad_scales: tuple[float, float, float] = (1.0, 1.0, 1.0)
 
     @property
     def current(self) -> ModeTrainingConfig:

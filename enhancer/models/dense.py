@@ -21,14 +21,14 @@ class DenseLayer(nn.Sequential):
         dropout: float = 0.0,
         reflect_padding: bool = True,
         activation: str = "prelu",
-        bn_size: int = 2,
+        bn_size: float = 2.0,
     ) -> None:
         super().__init__()
         self.add_module(
             "bottleneck",
             ConvLayer(
                 in_channels=in_channels,
-                out_channels=bn_size * growth_rate,
+                out_channels=int(bn_size * growth_rate),
                 kernel_size=1,
                 stride=1,
                 padding=0,
@@ -40,7 +40,7 @@ class DenseLayer(nn.Sequential):
         self.add_module(
             "conv",
             ConvLayer(
-                in_channels=bn_size * growth_rate,
+                in_channels=int(bn_size * growth_rate),
                 out_channels=growth_rate,
                 kernel_size=kernel_size,
                 stride=stride,
@@ -77,7 +77,7 @@ class DenseBlock(nn.Sequential):
         dropout: float = 0.0,
         reflect_padding: bool = True,
         activation: str = "prelu",
-        bn_size: int = 2,
+        bn_size: float = 2.0,
     ) -> None:
         super().__init__()
 

@@ -144,8 +144,8 @@ class TrainerModule(pl.LightningModule):
             g_loss = (
                 0.1 * msssim_loss
                 + 0.1 * ssim_loss
-                + 0.35 * mse_loss
-                + 0.35 * l1_loss
+                + mse_loss
+                + 0.5 * l1_loss
                 + 0.1 * gd_loss
             )
             self.log(f"{prefix}g_d_loss", gd_loss, prog_bar=True)
@@ -153,9 +153,7 @@ class TrainerModule(pl.LightningModule):
             self.enhancer_losses = self.enhancer_losses[: self.probe]
         else:
             preds = None
-            g_loss = (
-                0.1 * msssim_loss + 0.1 * ssim_loss + 0.4 * mse_loss + 0.4 * l1_loss
-            )
+            g_loss = 0.1 * msssim_loss + 0.1 * ssim_loss + mse_loss + 0.5 * l1_loss
 
         self.log(f"{prefix}g_loss", g_loss, prog_bar=True)
 

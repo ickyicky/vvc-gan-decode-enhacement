@@ -1,65 +1,65 @@
+test_full_frames: true
 trainer:
   mode: gan
   separation_epochs: 1
+  channels_grad_scales:
+    - 0.66666
+    - 0.66666
+    - 0.66666
   gan:
-    discriminator_lr: 0.0005
-    enhancer_lr:      0.001
     epochs: 1000
-    enhancer_scheduler_gamma: 0.5
-    enhancer_scheduler_milestones: [10, 20, 50, 100, 200, 300, 400, 500, 600, 800]
+    discriminator_lr: 0.00009
+    enhancer_lr: 0.0002
     discriminator_scheduler_gamma: 0.5
-    discriminator_scheduler_milestones: [5, 10, 20, 50, 100, 200, 300, 400, 500, 600, 800]
+    discriminator_scheduler_milestones: [50, 100, 150, 200, 300, 400, 500, 600, 800]
+    enhancer_scheduler_gamma: 0.5
+    enhancer_scheduler_milestones: [50, 100, 150, 200, 300, 400, 500, 600, 800]
+    saved_chunk_folder: enhanced/gan
 discriminator:
-  implementation: dense
-  # load_from: 'experiments/discriminator/dense.pth'
-  save_to: 'experiments/gan/dense_dis.pth'
-  bn_size: 2
+  save_to: 'experiments/gan/conv_dis.pth'
   features:
-    kernel_size: 7
-    padding: 3
+    kernel_size: 4
+    padding: 1
     stride: 2
-    features: 32
-    pool: true
-    dense: false
+    features: 64
+    pool: false
   structure:
     blocks:
-      - kernel_size: 3
+      - kernel_size: 4
         padding: 1
-        stride: 1
-        features: 8
-        num_layers: 3
-        transition:
-          mode: down
-      - kernel_size: 3
+        stride: 2
+        features: 128
+      - kernel_size: 4
         padding: 1
-        stride: 1
-        features: 8
-        num_layers: 6
-        transition:
-          mode: down
-      - kernel_size: 3
+        stride: 2
+        features: 256
+      - kernel_size: 4
         padding: 1
-        stride: 1
-        features: 8
-        num_layers: 12
-        transition:
-          mode: down
-      - kernel_size: 3
+        stride: 2
+        features: 512
+      - kernel_size: 4
         padding: 1
-        stride: 1
-        features: 8
-        num_layers: 1
+        stride: 2
+        features: 1024
   classifier:
+    kernel_size: 4
+    padding: 0
+    stride: 4
+    features: 1
+  classifier:
+    kernel_size: 4
+    padding: 0
+    stride: 4
     features: 1
 enhancer:
   implementation: dense
-  # load_from: 'experiments/enhancer/dense_deep.pth'
   save_to: 'experiments/gan/dense_enh.pth'
+  bn_size: 1.5
   features:
     kernel_size: 9
     padding: 4
     stride: 1
-    features: 128
+    features: 64
     pool: false
     dense: true
   structure:
@@ -67,25 +67,34 @@ enhancer:
       - kernel_size: 7
         padding: 3
         stride: 1
-        features: 16
-        num_layers: 8
+        features: 64
+        transition:
+          mode: same
+      - kernel_size: 5
+        padding: 2
+        stride: 1
+        features: 96
         transition:
           mode: same
       - kernel_size: 3
         padding: 1
         stride: 1
-        features: 16
-        num_layers: 8
+        features: 64
         transition:
           mode: same
-      - kernel_size: 1
-        padding: 0
+      - kernel_size: 3
+        padding: 1
         stride: 1
-        features: 16
-        num_layers: 4
+        features: 48
+        transition:
+          mode: same
+      - kernel_size: 3
+        padding: 1
+        stride: 1
+        features: 32
   output_block:
-    kernel_size: 5
-    padding: 2
+    kernel_size: 3
+    padding: 1
     stride: 1
     features: 3
     tanh: false
