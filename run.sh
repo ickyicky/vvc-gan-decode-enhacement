@@ -35,4 +35,5 @@
 #
 # python -m enhancer -c experiments/gan/res.yaml --train --predict
 # python -m enhancer -c experiments/gan/dense_fresh.yaml --train
-python -m enhancer -c experiments/gan/dense.yaml --train --predict
+# python -m enhancer -c experiments/gan/dense.yaml --train --predict
+./bin/do_enhanced.sh gan

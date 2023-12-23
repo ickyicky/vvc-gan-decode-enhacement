@@ -60,6 +60,7 @@ def parse_params(p):
 
 
 for experiment in tqdm(os.listdir(EXPERIMENTS)):
+    print(f"processing experiment: {experiment}")
     exp_dir = os.path.join(EXPERIMENTS, experiment)
 
     for movie in tqdm(os.listdir(exp_dir)):
